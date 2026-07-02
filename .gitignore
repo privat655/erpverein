@@ -1,0 +1,12 @@
+# Local secrets and machine-specific environment files
+.env
+.env.*
+!.env.example
+
+# Local OpenCode/private workspace files
+.opencode/
+.private/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
