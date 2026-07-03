@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verein_erp"
+version = "0.1.0"
+description = "ERPNext custom app for simple Vereinsverwaltung"
+requires-python = ">=3.10"
+dependencies = ["frappe"]
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["verein_erp*"]
+
+[tool.setuptools.package-data]
+verein_erp = ["**/*.json", "**/*.js", "*.txt"]

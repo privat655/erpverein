@@ -1,0 +1,20 @@
+app_name = "verein_erp"
+app_title = "Verein ERP"
+app_publisher = "Verein ERP"
+app_description = "Durable ERPNext customizations for Vereinsverwaltung"
+app_email = "admin@example.com"
+app_license = "MIT"
+
+required_apps = ["erpnext"]
+
+after_install = "verein_erp.install.after_install"
+before_uninstall = "verein_erp.uninstall.before_uninstall"
+before_tests = "verein_erp.tests.before_tests.before_tests"
+
+doc_events = {
+    "Customer": {
+        "validate": "verein_erp.services.mitglied_service.validate_customer_membership_link",
+        "on_update": "verein_erp.services.mitglied_service.sync_customer_to_mitglied",
+        "on_trash": "verein_erp.services.mitglied_service.clear_customer_link_from_mitglied",
+    }
+}
