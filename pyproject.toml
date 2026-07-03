@@ -4,11 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "verein_erp"
-version = "0.1.0"
+version = "0.1.1"
 description = "ERPNext custom app for simple Vereinsverwaltung"
 requires-python = ">=3.10"
-dependencies = ["frappe"]
 license = { text = "MIT" }
+
+[tool.bench.frappe-dependencies]
+frappe = ">=16.0.0,<17.0.0"
+erpnext = ">=16.0.0,<17.0.0"
 
 [tool.setuptools.packages.find]
 where = ["."]

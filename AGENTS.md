@@ -10,7 +10,7 @@ Target runtime for the first production line:
 
 - Frappe: `v16.23.1`
 - ERPNext: `v16.23.1`
-- App: `verein_erp` `0.1.0`
+- App: `verein_erp` `0.1.1`
 - Deployment model: custom ERPNext image via GitHub Actions/GHCR, deployed later on `host01` with rootless Podman Quadlet
 
 ## General Guidelines
