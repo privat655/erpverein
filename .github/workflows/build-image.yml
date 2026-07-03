@@ -1,0 +1,118 @@
+name: Build ERPNext Custom Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      erpnext_version:
+        description: "Pinned ERPNext/Frappe tag"
+        required: true
+        default: "v16.23.1"
+      app_ref:
+        description: "verein_erp git ref to install into the image"
+        required: true
+        default: "main"
+  push:
+    tags:
+      - "v*.*.*-*"
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DEFAULT_ERP_VERSION: v16.23.1
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/erpnext-verein
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout verein_erp
+        uses: actions/checkout@v4
+
+      - name: Prepare build metadata
+        id: vars
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ERP_VERSION: ${{ github.event.inputs.erpnext_version }}
+          INPUT_APP_REF: ${{ github.event.inputs.app_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_ERP_VERSION: ${{ env.DEFAULT_ERP_VERSION }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "release" ]]; then
+            RELEASE_REF="${RELEASE_TAG:-$REF_NAME}"
+
+            if [[ ! "$RELEASE_REF" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-(.+)$ ]]; then
+              echo "Release tag must look like v16.23.1-0.1.0" >&2
+              exit 1
+            fi
+
+            ERP_VERSION="v${BASH_REMATCH[1]}"
+            APP_REF="$RELEASE_REF"
+            IMAGE_TAG="$RELEASE_REF"
+          else
+            ERP_VERSION="${INPUT_ERP_VERSION:-$DEFAULT_ERP_VERSION}"
+            APP_REF="${INPUT_APP_REF:-main}"
+            IMAGE_TAG="${ERP_VERSION}-${APP_REF#v}"
+          fi
+
+          echo "erp_version=${ERP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "app_ref=${APP_REF}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create apps.json
+        shell: bash
+        run: |
+          cat > /tmp/apps.json <<JSON
+          [
+            {
+              "url": "https://github.com/frappe/erpnext",
+              "branch": "${{ steps.vars.outputs.erp_version }}"
+            },
+            {
+              "url": "https://github.com/${{ github.repository }}",
+              "branch": "${{ steps.vars.outputs.app_ref }}"
+            }
+          ]
+          JSON
+
+      - name: Checkout frappe_docker
+        uses: actions/checkout@v4
+        with:
+          repository: frappe/frappe_docker
+          path: frappe_docker
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: frappe_docker
+          file: frappe_docker/images/layered/Containerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            FRAPPE_PATH=https://github.com/frappe/frappe
+            FRAPPE_BRANCH=${{ steps.vars.outputs.erp_version }}
+            CACHE_BUST=${{ github.sha }}
+          secret-files: |
+            apps_json=/tmp/apps.json
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=ERPNext custom image with verein_erp
+            org.opencontainers.image.licenses=MIT
