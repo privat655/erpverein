@@ -10,7 +10,9 @@
  "field_order": [
   "stammdaten_section",
   "mitglied_id",
+  "fremd_id",
   "mitglied_name",
+  "anrede",
   "vorname",
   "nachname",
   "address_column_break",
@@ -21,6 +23,7 @@
   "kontakt_section",
   "email",
   "telefon",
+  "picture_url",
   "mitgliedschaft_section",
   "geburtsdatum",
   "eintrittsdatum",
@@ -50,6 +53,16 @@
    "unique": 1
   },
   {
+   "description": "Externe ID aus dem CRM-System fuer Import und Synchronisation.",
+   "fieldname": "fremd_id",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Fremd ID",
+   "no_copy": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
    "fieldname": "mitglied_name",
    "fieldtype": "Data",
    "in_global_search": 1,
@@ -57,6 +70,11 @@
    "label": "Mitgliedsname",
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "anrede",
+   "fieldtype": "Data",
+   "label": "Anrede"
   },
   {
    "fieldname": "vorname",
@@ -117,6 +135,12 @@
    "fieldtype": "Data",
    "label": "Telefon",
    "options": "Phone"
+  },
+  {
+   "fieldname": "picture_url",
+   "fieldtype": "Data",
+   "label": "Picture URL",
+   "options": "URL"
   },
   {
    "fieldname": "mitgliedschaft_section",
@@ -192,7 +216,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-07-02 00:00:00.000000",
+ "modified": "2026-07-03 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "verein_erp",
  "name": "Mitglied",
@@ -215,7 +239,7 @@
  ],
  "quick_entry": 0,
  "row_format": "Dynamic",
- "search_fields": "mitglied_id,mitglied_name,vorname,nachname,email,customer",
+ "search_fields": "mitglied_id,fremd_id,mitglied_name,vorname,nachname,email,customer",
  "show_name_in_global_search": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

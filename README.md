@@ -6,7 +6,7 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 - Frappe: `v16.25.0`
 - ERPNext: `v16.26.2`
-- App: `verein_erp` `0.1.3`
+- App: `verein_erp` `0.1.4`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
 
 ## Erste Feature-Scheibe

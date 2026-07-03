@@ -30,6 +30,54 @@ class TestMitgliedDoctype(IntegrationTestCase):
         self.assertEqual(mitglied.email, "erika@example.org")
         self.assertEqual(frappe.db.get_value("Customer", customer.name, "mitglied"), mitglied.name)
 
+    def test_crm_sync_fields_exist_with_expected_metadata(self):
+        meta = frappe.get_meta("Mitglied", cached=False)
+
+        anrede = meta.get_field("anrede")
+        self.assertIsNotNone(anrede)
+        self.assertEqual(anrede.fieldtype, "Data")
+
+        picture_url = meta.get_field("picture_url")
+        self.assertIsNotNone(picture_url)
+        self.assertEqual(picture_url.fieldtype, "Data")
+        self.assertEqual(picture_url.options, "URL")
+
+        fremd_id = meta.get_field("fremd_id")
+        self.assertIsNotNone(fremd_id)
+        self.assertEqual(fremd_id.fieldtype, "Data")
+        self.assertEqual(fremd_id.unique, 1)
+        self.assertEqual(fremd_id.search_index, 1)
+
+    def test_mitglied_stores_crm_sync_fields(self):
+        fremd_id = f"CRM-{frappe.generate_hash(length=8)}"
+        picture_url = (
+            "https://coalpicturestorage.blob.core.windows.net/images/"
+            "2adc5c65-dbcb-4162-9f84-60d9b492d448.jpeg"
+        )
+        mitglied = frappe.get_doc(
+            {
+                "doctype": "Mitglied",
+                "fremd_id": fremd_id,
+                "anrede": "Frau",
+                "vorname": "Clara",
+                "nachname": "CRM",
+                "eintrittsdatum": "2026-01-01",
+                "email": "clara.crm@example.org",
+                "picture_url": picture_url,
+                "abrechnungsart": "Rechnung",
+            }
+        ).insert(ignore_permissions=True)
+
+        stored = frappe.db.get_value(
+            "Mitglied",
+            mitglied.name,
+            ["fremd_id", "anrede", "picture_url"],
+            as_dict=True,
+        )
+        self.assertEqual(stored.fremd_id, fremd_id)
+        self.assertEqual(stored.anrede, "Frau")
+        self.assertEqual(stored.picture_url, picture_url)
+
     def test_customer_link_syncs_back_to_mitglied(self):
         customer = make_customer("Customer Backlink")
         mitglied = frappe.get_doc(
