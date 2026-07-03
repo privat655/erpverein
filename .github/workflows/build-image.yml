@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       erpnext_version:
-        description: "Pinned ERPNext/Frappe tag"
+        description: "Pinned ERPNext tag"
         required: true
-        default: "v16.23.1"
+        default: "v16.26.2"
+      frappe_version:
+        description: "Pinned Frappe/base image tag"
+        required: true
+        default: "v16.25.0"
       app_ref:
         description: "verein_erp git ref to install into the image"
         required: true
@@ -22,7 +26,8 @@ permissions:
   packages: write
 
 env:
-  DEFAULT_ERP_VERSION: v16.23.1
+  DEFAULT_ERP_VERSION: v16.26.2
+  DEFAULT_FRAPPE_VERSION: v16.25.0
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/erpnext-verein
 
 jobs:
@@ -39,29 +44,34 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_ERP_VERSION: ${{ github.event.inputs.erpnext_version }}
+          INPUT_FRAPPE_VERSION: ${{ github.event.inputs.frappe_version }}
           INPUT_APP_REF: ${{ github.event.inputs.app_ref }}
           REF_NAME: ${{ github.ref_name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           DEFAULT_ERP_VERSION: ${{ env.DEFAULT_ERP_VERSION }}
+          DEFAULT_FRAPPE_VERSION: ${{ env.DEFAULT_FRAPPE_VERSION }}
         run: |
           if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "release" ]]; then
             RELEASE_REF="${RELEASE_TAG:-$REF_NAME}"
 
             if [[ ! "$RELEASE_REF" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-(.+)$ ]]; then
-              echo "Release tag must look like v16.23.1-0.1.0" >&2
+              echo "Release tag must look like v16.26.2-0.1.3" >&2
               exit 1
             fi
 
             ERP_VERSION="v${BASH_REMATCH[1]}"
+            FRAPPE_VERSION="$DEFAULT_FRAPPE_VERSION"
             APP_REF="$RELEASE_REF"
             IMAGE_TAG="$RELEASE_REF"
           else
             ERP_VERSION="${INPUT_ERP_VERSION:-$DEFAULT_ERP_VERSION}"
+            FRAPPE_VERSION="${INPUT_FRAPPE_VERSION:-$DEFAULT_FRAPPE_VERSION}"
             APP_REF="${INPUT_APP_REF:-main}"
             IMAGE_TAG="${ERP_VERSION}-${APP_REF#v}"
           fi
 
           echo "erp_version=${ERP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "frappe_version=${FRAPPE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "app_ref=${APP_REF}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -106,7 +116,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             FRAPPE_PATH=https://github.com/frappe/frappe
-            FRAPPE_BRANCH=${{ steps.vars.outputs.erp_version }}
+            FRAPPE_BRANCH=${{ steps.vars.outputs.frappe_version }}
             CACHE_BUST=${{ github.sha }}
           secret-files: |
             apps_json=/tmp/apps.json

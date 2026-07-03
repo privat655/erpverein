@@ -8,9 +8,9 @@ This file provides guidance on how to work with this repository.
 
 Target runtime for the first production line:
 
-- Frappe: `v16.23.1`
-- ERPNext: `v16.23.1`
-- App: `verein_erp` `0.1.2`
+- Frappe: `v16.25.0`
+- ERPNext: `v16.26.2`
+- App: `verein_erp` `0.1.3`
 - Deployment model: custom ERPNext image via GitHub Actions/GHCR, deployed later on `host01` with rootless Podman Quadlet
 
 ## General Guidelines
