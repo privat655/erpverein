@@ -2,6 +2,11 @@ import frappe
 from frappe import _
 from frappe.utils import cstr, getdate
 
+from verein_erp.services.sepa_mandat_service import (
+    MANDATE_CATEGORY_MEMBERSHIP,
+    MANDATE_STATUS_ACTIVE,
+)
+
 
 BILLING_TYPE_INVOICE = "Rechnung"
 BILLING_TYPE_DIRECT_DEBIT = "Lastschrift"
@@ -39,7 +44,7 @@ def normalize_mitglied(doc) -> None:
     doc.land = normalize_text(doc.land)
     doc.email = normalize_email(doc.email)
     doc.telefon = normalize_text(doc.telefon)
-    doc.mandat_id = normalize_text(doc.mandat_id)
+    doc.sepa_mandat = normalize_text(doc.get("sepa_mandat"))
     doc.abrechnungsart = normalize_text(doc.abrechnungsart) or BILLING_TYPE_INVOICE
     doc.mitglied_name = get_mitglied_display_name(doc.vorname, doc.nachname)
 
@@ -63,24 +68,53 @@ def validate_mitglied_dates(doc) -> None:
 
 
 def validate_lastschrift_mandate(doc) -> None:
-    if doc.mandat_id:
-        other_mitglied = frappe.db.get_value(
-            "Mitglied",
-            {"mandat_id": doc.mandat_id, "name": ("!=", doc.name)},
-            "name",
-        )
-        if other_mitglied:
-            frappe.throw(
-                _("Mandat ID {0} ist bereits bei Mitglied {1} eingetragen.").format(
-                    frappe.bold(doc.mandat_id), frappe.bold(other_mitglied)
-                )
-            )
+    active_mandat = get_active_sepa_mandat_for_mitglied(doc.name)
+    if active_mandat and not doc.sepa_mandat:
+        doc.sepa_mandat = active_mandat
+
+    if doc.sepa_mandat:
+        validate_sepa_mandat_link(doc, doc.sepa_mandat)
 
     if doc.abrechnungsart != BILLING_TYPE_DIRECT_DEBIT:
         return
 
-    if not doc.mandat_id or not doc.mandatsdatum:
-        frappe.throw(_("Mandat ID und Mandatsdatum sind fuer Lastschrift erforderlich."))
+    if not doc.sepa_mandat:
+        frappe.throw(_("Ein aktives SEPA Mandat ist fuer Lastschrift erforderlich."))
+
+
+def get_active_sepa_mandat_for_mitglied(mitglied: str | None) -> str | None:
+    if not mitglied:
+        return None
+
+    return frappe.db.get_value(
+        "SEPA Mandat",
+        {
+            "mandatskategorie": MANDATE_CATEGORY_MEMBERSHIP,
+            "bezugs_doctype": "Mitglied",
+            "bezugs_name": mitglied,
+            "status": MANDATE_STATUS_ACTIVE,
+        },
+        "name",
+    )
+
+
+def validate_sepa_mandat_link(doc, sepa_mandat: str) -> None:
+    mandate = frappe.db.get_value(
+        "SEPA Mandat",
+        sepa_mandat,
+        ["status", "mandatskategorie", "bezugs_doctype", "bezugs_name"],
+        as_dict=True,
+    )
+    if not mandate:
+        frappe.throw(_("SEPA Mandat {0} existiert nicht.").format(frappe.bold(sepa_mandat)))
+
+    if (
+        mandate.status != MANDATE_STATUS_ACTIVE
+        or mandate.mandatskategorie != MANDATE_CATEGORY_MEMBERSHIP
+        or mandate.bezugs_doctype != "Mitglied"
+        or mandate.bezugs_name != doc.name
+    ):
+        frappe.throw(_("SEPA Mandat {0} ist kein aktives Mandat fuer dieses Mitglied.").format(frappe.bold(sepa_mandat)))
 
 
 def validate_mitglied_customer_link(doc) -> None:

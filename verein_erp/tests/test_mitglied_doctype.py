@@ -48,6 +48,15 @@ class TestMitgliedDoctype(IntegrationTestCase):
         self.assertEqual(fremd_id.unique, 1)
         self.assertEqual(fremd_id.search_index, 1)
 
+        sepa_mandat = meta.get_field("sepa_mandat")
+        self.assertIsNotNone(sepa_mandat)
+        self.assertEqual(sepa_mandat.fieldtype, "Link")
+        self.assertEqual(sepa_mandat.options, "SEPA Mandat")
+        self.assertEqual(sepa_mandat.read_only, 1)
+
+        self.assertIsNone(meta.get_field("mandat_id"))
+        self.assertIsNone(meta.get_field("mandatsdatum"))
+
     def test_mitglied_stores_crm_sync_fields(self):
         fremd_id = f"CRM-{frappe.generate_hash(length=8)}"
         picture_url = (
@@ -108,33 +117,27 @@ class TestMitgliedDoctype(IntegrationTestCase):
 
         self.assertRaises(frappe.ValidationError, mitglied.insert, ignore_permissions=True)
 
-    def test_mandat_id_must_be_unique(self):
-        mandate_id = f"MANDAT-{frappe.generate_hash(length=8)}"
-        frappe.get_doc(
+    def test_lastschrift_accepts_active_sepa_mandat(self):
+        customer = make_customer("Lastschrift Mandat")
+        mitglied = frappe.get_doc(
             {
                 "doctype": "Mitglied",
                 "vorname": "Mara",
                 "nachname": "Mandat",
                 "eintrittsdatum": "2026-01-01",
-                "abrechnungsart": "Lastschrift",
-                "mandat_id": mandate_id,
-                "mandatsdatum": "2026-01-01",
+                "abrechnungsart": "Rechnung",
+                "customer": customer.name,
             }
         ).insert(ignore_permissions=True)
 
-        duplicate = frappe.get_doc(
-            {
-                "doctype": "Mitglied",
-                "vorname": "Duplikat",
-                "nachname": "Mandat",
-                "eintrittsdatum": "2026-01-01",
-                "abrechnungsart": "Lastschrift",
-                "mandat_id": mandate_id,
-                "mandatsdatum": "2026-01-01",
-            }
-        )
+        mandate = make_active_sepa_mandat(mitglied)
+        mitglied.reload()
+        self.assertEqual(mitglied.sepa_mandat, mandate.name)
 
-        self.assertRaises(frappe.ValidationError, duplicate.insert, ignore_permissions=True)
+        mitglied.abrechnungsart = "Lastschrift"
+        mitglied.save(ignore_permissions=True)
+
+        self.assertEqual(frappe.db.get_value("Mitglied", mitglied.name, "abrechnungsart"), "Lastschrift")
 
     def test_austrittsdatum_must_not_precede_eintrittsdatum(self):
         mitglied = frappe.get_doc(
@@ -170,3 +173,35 @@ def make_customer(label: str):
         customer.territory = territory
 
     return customer.insert(ignore_permissions=True)
+
+
+def make_bank():
+    bank_name = f"SEPA Test Bank {frappe.generate_hash(length=8)}"
+    return frappe.get_doc({"doctype": "Bank", "bank_name": bank_name}).insert(ignore_permissions=True)
+
+
+def make_active_sepa_mandat(mitglied, **overrides):
+    bank = make_bank()
+    data = {
+        "doctype": "SEPA Mandat",
+        "mandatsreferenz": f"MR-{frappe.generate_hash(length=10)}",
+        "mandatskategorie": "Mitgliedsbeitrag",
+        "status": "Aktiv",
+        "bezugs_doctype": "Mitglied",
+        "bezugs_name": mitglied.name,
+        "mandatsdatum": "2026-01-01",
+        "einzugsmodus": "Jaehrlich",
+        "kontoinhaber": mitglied.mitglied_name,
+        "iban": make_german_iban(),
+        "bic": "COBADEFFXXX",
+        "bank": bank.name,
+    }
+    data.update(overrides)
+    return frappe.get_doc(data).insert(ignore_permissions=True)
+
+
+def make_german_iban() -> str:
+    account_no = int(frappe.generate_hash(length=8), 36) % 10_000_000_000
+    bban = f"37040044{account_no:010d}"
+    check_digits = 98 - (int(f"{bban}131400") % 97)
+    return f"DE{check_digits:02d}{bban}"

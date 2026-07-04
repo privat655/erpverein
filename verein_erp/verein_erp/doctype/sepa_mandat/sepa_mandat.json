@@ -1,0 +1,228 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 0,
+ "autoname": "field:mandatsreferenz",
+ "creation": "2026-07-04 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "mandat_section",
+  "mandatsreferenz",
+  "mandatskategorie",
+  "status",
+  "reference_column_break",
+  "bezugs_doctype",
+  "bezugs_name",
+  "customer",
+  "mandatsdetails_section",
+  "mandatsdatum",
+  "einzugsmodus",
+  "unterschriebenes_mandat",
+  "bankdaten_section",
+  "kontoinhaber",
+  "kontoinhaber_adresse",
+  "bank_column_break",
+  "iban",
+  "bic",
+  "bank",
+  "bank_name_freitext",
+  "erpnext_section",
+  "bank_account",
+  "bemerkungen"
+ ],
+ "fields": [
+  {
+   "fieldname": "mandat_section",
+   "fieldtype": "Section Break",
+   "label": "Mandat"
+  },
+  {
+   "fieldname": "mandatsreferenz",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Mandatsreferenz",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "default": "Mitgliedsbeitrag",
+   "fieldname": "mandatskategorie",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Mandatskategorie",
+   "options": "Mitgliedsbeitrag\nMiete",
+   "reqd": 1
+  },
+  {
+   "default": "Entwurf",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Entwurf\nAktiv\nWiderrufen\nErsetzt",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Mitglied",
+   "fieldname": "bezugs_doctype",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Bezugs-DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bezugs_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Bezug",
+   "options": "bezugs_doctype",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Aus dem Bezugsdokument abgeleiteter ERPNext Customer.",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "mandatsdetails_section",
+   "fieldtype": "Section Break",
+   "label": "Mandatsdetails"
+  },
+  {
+   "fieldname": "mandatsdatum",
+   "fieldtype": "Date",
+   "label": "Mandatsdatum",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'"
+  },
+  {
+   "fieldname": "einzugsmodus",
+   "fieldtype": "Select",
+   "label": "Einzugsmodus",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'",
+   "options": "\nJaehrlich\nHalbjaehrlich"
+  },
+  {
+   "fieldname": "unterschriebenes_mandat",
+   "fieldtype": "Attach",
+   "label": "Unterschriebenes Mandat"
+  },
+  {
+   "fieldname": "bankdaten_section",
+   "fieldtype": "Section Break",
+   "label": "Bankdaten"
+  },
+  {
+   "fieldname": "kontoinhaber",
+   "fieldtype": "Data",
+   "label": "Kontoinhaber",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'"
+  },
+  {
+   "fieldname": "kontoinhaber_adresse",
+   "fieldtype": "Small Text",
+   "label": "Kontoinhaber Adresse"
+  },
+  {
+   "fieldname": "bank_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "iban",
+   "fieldtype": "Data",
+   "label": "IBAN",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'",
+   "options": "IBAN",
+   "search_index": 1
+  },
+  {
+   "fieldname": "bic",
+   "fieldtype": "Data",
+   "label": "BIC"
+  },
+  {
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "label": "Bank",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'",
+   "options": "Bank"
+  },
+  {
+   "fieldname": "bank_name_freitext",
+   "fieldtype": "Data",
+   "label": "Bankname Freitext"
+  },
+  {
+   "fieldname": "erpnext_section",
+   "fieldtype": "Section Break",
+   "label": "ERPNext Verknuepfung"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "no_copy": 1,
+   "options": "Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bemerkungen",
+   "fieldtype": "Small Text",
+   "label": "Bemerkungen"
+  }
+ ],
+ "icon": "fa fa-bank",
+ "idx": 1,
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-07-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "verein_erp",
+ "name": "SEPA Mandat",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "search_fields": "mandatsreferenz,mandatskategorie,bezugs_doctype,bezugs_name,customer,kontoinhaber,iban",
+ "show_name_in_global_search": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "mandatsreferenz",
+ "track_changes": 1
+}
