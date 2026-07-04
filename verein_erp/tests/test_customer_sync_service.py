@@ -17,7 +17,7 @@ class TestCustomerSyncService(IntegrationTestCase):
 
     def test_initial_sync_creates_customer_and_address(self):
         mitglied = make_mitglied(
-            email="todor@example.org",
+            email="member@example.org",
             telefon="01234",
             picture_url="https://example.org/todor.jpg",
             strasse="Musterstrasse 1",
@@ -33,7 +33,7 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertTrue(result["created"])
         self.assertEqual(mitglied.customer, customer.name)
         self.assertEqual(customer.mitglied, mitglied.name)
-        self.assertEqual(customer.customer_name, "Todor Sync")
+        self.assertEqual(customer.customer_name, "Sample Sync")
         self.assertEqual(customer.customer_type, "Individual")
         self.assertEqual(customer.customer_group, "Individual")
         self.assertEqual(customer.territory, "Germany")
@@ -44,11 +44,11 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertTrue(customer.customer_primary_address)
 
         contact = frappe.get_doc("Contact", customer.customer_primary_contact)
-        self.assertEqual(contact.first_name, "Todor")
+        self.assertEqual(contact.first_name, "Sample")
         self.assertFalse(contact.middle_name)
         self.assertEqual(contact.last_name, "Sync")
         self.assertEqual(contact.salutation, "Mr")
-        self.assertEqual(contact.email_id, "todor@example.org")
+        self.assertEqual(contact.email_id, "member@example.org")
         self.assertEqual(contact.mobile_no, "01234")
 
         address = frappe.get_doc("Address", customer.customer_primary_address)
@@ -61,7 +61,7 @@ class TestCustomerSyncService(IntegrationTestCase):
             self.assertEqual(contact.is_billing_contact, 1)
 
         state = json.loads(customer.get(CUSTOMER_SYNC_STATE_FIELDNAME))
-        self.assertEqual(state["customer_fields"]["customer_name"], "Todor Sync")
+        self.assertEqual(state["customer_fields"]["customer_name"], "Sample Sync")
         self.assertEqual(state["customer_fields"]["image"], "https://example.org/todor.jpg")
         self.assertNotIn("email_id", state["customer_fields"])
         self.assertNotIn("mobile_no", state["customer_fields"])
@@ -69,11 +69,11 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertNotIn("last_name", state["customer_fields"])
         self.assertEqual(state["address"]["name"], address.name)
         self.assertEqual(state["contact"]["name"], contact.name)
-        self.assertEqual(state["contact"]["fields"]["first_name"], "Todor")
+        self.assertEqual(state["contact"]["fields"]["first_name"], "Sample")
         self.assertFalse(state["contact"]["fields"]["middle_name"])
         self.assertEqual(state["contact"]["fields"]["last_name"], "Sync")
         self.assertEqual(state["contact"]["fields"]["salutation"], "Mr")
-        self.assertEqual(state["contact"]["fields"]["email_id"], "todor@example.org")
+        self.assertEqual(state["contact"]["fields"]["email_id"], "member@example.org")
         self.assertEqual(state["contact"]["fields"]["mobile_no"], "01234")
         self.assertEqual(state["contact"]["fields"]["address"], address.name)
         if contact.meta.has_field("is_billing_contact"):
@@ -90,10 +90,10 @@ class TestCustomerSyncService(IntegrationTestCase):
         mitglied.save(ignore_permissions=True)
 
         customer = frappe.get_doc("Customer", result["customer"])
-        self.assertEqual(customer.customer_name, "Todor Updated")
+        self.assertEqual(customer.customer_name, "Sample Updated")
         self.assertEqual(customer.image, "https://example.org/new.jpg")
         contact = frappe.get_doc("Contact", customer.customer_primary_contact)
-        self.assertEqual(contact.first_name, "Todor")
+        self.assertEqual(contact.first_name, "Sample")
         self.assertFalse(contact.middle_name)
         self.assertEqual(contact.last_name, "Updated")
         self.assertEqual(contact.salutation, "Ms")
@@ -182,7 +182,7 @@ class TestCustomerSyncService(IntegrationTestCase):
 def make_mitglied(**overrides):
     data = {
         "doctype": "Mitglied",
-        "vorname": "Todor",
+        "vorname": "Sample",
         "nachname": "Sync",
         "eintrittsdatum": "2026-01-01",
         "abrechnungsart": "Rechnung",

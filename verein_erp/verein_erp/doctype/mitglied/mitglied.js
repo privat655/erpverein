@@ -20,6 +20,20 @@ frappe.ui.form.on("Mitglied", {
           },
         });
       });
+
+      frm.add_custom_button(__("Subscription Lauf erstellen"), () => {
+        frappe.call({
+          method: "verein_erp.api.subscription_generation.create_run",
+          args: { mitglied: frm.doc.name },
+          freeze: true,
+          freeze_message: __("Subscription Lauf wird erstellt..."),
+          callback(r) {
+            if (!r.exc && r.message?.run) {
+              frappe.set_route("Form", "Mitglied Subscription Lauf", r.message.run);
+            }
+          },
+        });
+      });
     }
 
     if (!frm.is_new() && frm.doc.customer) {

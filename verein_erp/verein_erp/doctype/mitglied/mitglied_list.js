@@ -19,5 +19,29 @@ frappe.listview_settings["Mitglied"] = {
         },
       });
     });
+
+    listview.page.add_inner_button(__("Subscription Lauf erstellen"), () => {
+      const checked = listview.get_checked_items ? listview.get_checked_items() : [];
+      const mitglieder = (checked || []).map((row) => row.name).filter(Boolean);
+      const createRun = () => {
+        frappe.call({
+          method: "verein_erp.api.subscription_generation.create_run",
+          args: { mitglieder_json: JSON.stringify(mitglieder) },
+          freeze: true,
+          freeze_message: __("Subscription Lauf wird erstellt..."),
+          callback(r) {
+            if (!r.exc && r.message?.run) {
+              frappe.set_route("Form", "Mitglied Subscription Lauf", r.message.run);
+            }
+          },
+        });
+      };
+
+      if (mitglieder.length) {
+        createRun();
+      } else {
+        frappe.confirm(__("Keine Mitglieder ausgewaehlt. Lauf fuer alle abrechnungspflichtigen Mitglieder erstellen?"), createRun);
+      }
+    });
   },
 };
