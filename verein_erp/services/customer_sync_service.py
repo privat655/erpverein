@@ -196,7 +196,8 @@ def create_customer_address(customer, desired: dict):
 
 
 def sync_customer_contact(mitglied, customer, state: dict, force_initial: bool = False) -> bool:
-    desired = get_desired_contact_fields(mitglied)
+    address_name = (state.get("address") or {}).get("name") or get_customer_primary_address(customer) or ""
+    desired = get_supported_contact_fields(get_desired_contact_fields(mitglied, address_name))
     if not has_required_contact_data(desired):
         return False
 
@@ -244,7 +245,9 @@ def create_customer_contact(customer, desired: dict):
 
 def apply_contact_fields(contact, desired: dict) -> bool:
     changed = False
-    for fieldname in ["first_name", "middle_name", "last_name"]:
+    for fieldname in ["first_name", "middle_name", "last_name", "salutation", "address", "is_billing_contact"]:
+        if fieldname not in desired:
+            continue
         if normalize_sync_value(contact.get(fieldname)) != desired[fieldname]:
             contact.set(fieldname, desired[fieldname])
             changed = True
@@ -331,14 +334,31 @@ def get_desired_address_fields(mitglied) -> dict:
     }
 
 
-def get_desired_contact_fields(mitglied) -> dict:
+def get_desired_contact_fields(mitglied, address_name: str = "") -> dict:
     return {
         "first_name": normalize_sync_value(mitglied.vorname),
         "middle_name": "",
         "last_name": normalize_sync_value(mitglied.nachname),
+        "salutation": get_contact_salutation(mitglied.anrede),
         "email_id": normalize_sync_value(mitglied.email),
         "mobile_no": normalize_sync_value(mitglied.telefon),
+        "address": normalize_sync_value(address_name),
+        "is_billing_contact": "1",
     }
+
+
+def get_contact_salutation(anrede: object) -> str:
+    salutation = {"herr": "Mr", "herrn": "Mr", "frau": "Ms"}.get(normalize_sync_value(anrede).lower(), "")
+    return salutation if salutation and frappe.db.exists("Salutation", salutation) else ""
+
+
+def get_supported_contact_fields(fields: dict) -> dict:
+    contact_meta = frappe.get_meta("Contact")
+    supported_fields = {"email_id", "mobile_no"}
+    for fieldname in ["first_name", "middle_name", "last_name", "salutation", "address", "is_billing_contact"]:
+        if contact_meta.has_field(fieldname):
+            supported_fields.add(fieldname)
+    return {fieldname: value for fieldname, value in fields.items() if fieldname in supported_fields}
 
 
 def has_required_address_data(address_fields: dict) -> bool:
@@ -359,13 +379,18 @@ def get_address_sync_fields(address) -> dict:
 
 
 def get_contact_sync_fields(contact) -> dict:
-    return {
+    fields = {
         "first_name": normalize_sync_value(contact.first_name),
         "middle_name": normalize_sync_value(contact.middle_name),
         "last_name": normalize_sync_value(contact.last_name),
         "email_id": normalize_sync_value(contact.email_id),
         "mobile_no": normalize_sync_value(contact.mobile_no),
     }
+    contact_meta = frappe.get_meta("Contact")
+    for fieldname in ["salutation", "address", "is_billing_contact"]:
+        if contact_meta.has_field(fieldname):
+            fields[fieldname] = normalize_sync_value(contact.get(fieldname))
+    return fields
 
 
 def get_customer_primary_address(customer) -> str | None:

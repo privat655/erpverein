@@ -4,6 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from verein_erp.custom_fields import CUSTOMER_SYNC_STATE_FIELDNAME, sync_custom_fields
+from verein_erp.setup_data import sync_salutations
 from verein_erp.services.customer_sync_service import create_or_sync_customer_for_mitglied
 
 
@@ -12,6 +13,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def setUpClass(cls):
         super().setUpClass()
         sync_custom_fields()
+        sync_salutations()
 
     def test_initial_sync_creates_customer_and_address(self):
         mitglied = make_mitglied(
@@ -21,6 +23,7 @@ class TestCustomerSyncService(IntegrationTestCase):
             strasse="Musterstrasse 1",
             plz="10115",
             ort="Berlin",
+            anrede="Herrn",
         )
 
         result = create_or_sync_customer_for_mitglied(mitglied.name)
@@ -44,6 +47,7 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(contact.first_name, "Todor")
         self.assertFalse(contact.middle_name)
         self.assertEqual(contact.last_name, "Sync")
+        self.assertEqual(contact.salutation, "Mr")
         self.assertEqual(contact.email_id, "todor@example.org")
         self.assertEqual(contact.mobile_no, "01234")
 
@@ -52,6 +56,9 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(address.pincode, "10115")
         self.assertEqual(address.city, "Berlin")
         self.assertEqual(address.country, "Germany")
+        self.assertEqual(contact.address, address.name)
+        if contact.meta.has_field("is_billing_contact"):
+            self.assertEqual(contact.is_billing_contact, 1)
 
         state = json.loads(customer.get(CUSTOMER_SYNC_STATE_FIELDNAME))
         self.assertEqual(state["customer_fields"]["customer_name"], "Todor Sync")
@@ -65,11 +72,15 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(state["contact"]["fields"]["first_name"], "Todor")
         self.assertFalse(state["contact"]["fields"]["middle_name"])
         self.assertEqual(state["contact"]["fields"]["last_name"], "Sync")
+        self.assertEqual(state["contact"]["fields"]["salutation"], "Mr")
         self.assertEqual(state["contact"]["fields"]["email_id"], "todor@example.org")
         self.assertEqual(state["contact"]["fields"]["mobile_no"], "01234")
+        self.assertEqual(state["contact"]["fields"]["address"], address.name)
+        if contact.meta.has_field("is_billing_contact"):
+            self.assertEqual(state["contact"]["fields"]["is_billing_contact"], "1")
 
     def test_running_sync_updates_auto_managed_customer_name_and_image(self):
-        mitglied = make_mitglied(email="old@example.org", telefon="111", picture_url="https://example.org/old.jpg")
+        mitglied = make_mitglied(email="old@example.org", telefon="111", picture_url="https://example.org/old.jpg", anrede="Frau")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
 
         mitglied.email = "new@example.org"
@@ -85,8 +96,25 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(contact.first_name, "Todor")
         self.assertFalse(contact.middle_name)
         self.assertEqual(contact.last_name, "Updated")
+        self.assertEqual(contact.salutation, "Ms")
         self.assertEqual(contact.email_id, "new@example.org")
         self.assertEqual(contact.mobile_no, "222")
+
+    def test_running_sync_updates_contact_address_when_auto_managed_address_is_created_later(self):
+        mitglied = make_mitglied(email="person@example.org")
+        result = create_or_sync_customer_for_mitglied(mitglied.name)
+        customer = frappe.get_doc("Customer", result["customer"])
+        contact = frappe.get_doc("Contact", customer.customer_primary_contact)
+        self.assertFalse(contact.address)
+
+        mitglied.strasse = "Neue Strasse 1"
+        mitglied.plz = "10115"
+        mitglied.ort = "Berlin"
+        mitglied.save(ignore_permissions=True)
+
+        customer.reload()
+        contact.reload()
+        self.assertEqual(contact.address, customer.customer_primary_address)
 
     def test_running_sync_keeps_manually_changed_customer_field(self):
         mitglied = make_mitglied(picture_url="https://example.org/old.jpg")
