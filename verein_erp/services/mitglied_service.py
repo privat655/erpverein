@@ -167,6 +167,9 @@ def sync_mitglied_to_customer(doc) -> None:
 
     if current_customer:
         set_value_if_changed("Customer", current_customer, CUSTOMER_MITGLIED_FIELDNAME, doc.name)
+        from verein_erp.services.customer_sync_service import sync_customer_from_mitglied
+
+        sync_customer_from_mitglied(doc)
 
 
 def sync_customer_to_mitglied(doc, method: str | None = None) -> None:
