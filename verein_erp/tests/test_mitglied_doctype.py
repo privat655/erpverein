@@ -48,11 +48,27 @@ class TestMitgliedDoctype(IntegrationTestCase):
         self.assertEqual(fremd_id.unique, 1)
         self.assertEqual(fremd_id.search_index, 1)
 
+        abrechnungsart = meta.get_field("abrechnungsart")
+        self.assertEqual(
+            abrechnungsart.options,
+            "Rechnung\nLastschrift\nBeitrag wird uebernommen\nBeitragsfrei",
+        )
+
+        jahresbeitrag = meta.get_field("jahresbeitrag")
+        self.assertIsNotNone(jahresbeitrag)
+        self.assertEqual(jahresbeitrag.fieldtype, "Currency")
+        self.assertEqual(jahresbeitrag.default, "350")
+
         sepa_mandat = meta.get_field("sepa_mandat")
         self.assertIsNotNone(sepa_mandat)
         self.assertEqual(sepa_mandat.fieldtype, "Link")
         self.assertEqual(sepa_mandat.options, "SEPA Mandat")
         self.assertEqual(sepa_mandat.read_only, 1)
+
+        beitragszahler = meta.get_field("beitragszahler")
+        self.assertIsNotNone(beitragszahler)
+        self.assertEqual(beitragszahler.fieldtype, "Link")
+        self.assertEqual(beitragszahler.options, "Mitglied")
 
         self.assertIsNone(meta.get_field("mandat_id"))
         self.assertIsNone(meta.get_field("mandatsdatum"))
@@ -117,6 +133,93 @@ class TestMitgliedDoctype(IntegrationTestCase):
 
         self.assertRaises(frappe.ValidationError, mitglied.insert, ignore_permissions=True)
 
+    def test_rechnung_defaults_jahresbeitrag(self):
+        mitglied = make_mitglied()
+
+        self.assertEqual(mitglied.jahresbeitrag, 350)
+
+    def test_beitragsfrei_sets_jahresbeitrag_to_zero(self):
+        mitglied = make_mitglied(abrechnungsart="Beitragsfrei", jahresbeitrag=350)
+
+        self.assertEqual(mitglied.jahresbeitrag, 0)
+
+    def test_beitragsfrei_rejects_sepa_mandat(self):
+        customer = make_customer("Beitragsfrei Mandat")
+        mitglied = make_mitglied(customer=customer.name)
+        make_active_sepa_mandat(mitglied)
+
+        mitglied.reload()
+        mitglied.abrechnungsart = "Beitragsfrei"
+
+        self.assertRaises(frappe.ValidationError, mitglied.save, ignore_permissions=True)
+
+    def test_covered_contribution_requires_payer(self):
+        mitglied = frappe.get_doc(
+            {
+                "doctype": "Mitglied",
+                "vorname": "Ohne",
+                "nachname": "Zahler",
+                "eintrittsdatum": "2026-01-01",
+                "abrechnungsart": "Beitrag wird uebernommen",
+            }
+        )
+
+        self.assertRaises(frappe.ValidationError, mitglied.insert, ignore_permissions=True)
+
+    def test_covered_contribution_accepts_valid_payer(self):
+        payer = make_mitglied(vorname="Zahlendes", nachname="Mitglied")
+        covered = make_mitglied(
+            vorname="Uebernommenes",
+            nachname="Mitglied",
+            abrechnungsart="Beitrag wird uebernommen",
+            beitragszahler=payer.name,
+        )
+
+        self.assertEqual(covered.beitragszahler, payer.name)
+
+    def test_covered_contribution_rejects_self_as_payer(self):
+        mitglied = make_mitglied()
+        mitglied.abrechnungsart = "Beitrag wird uebernommen"
+        mitglied.beitragszahler = mitglied.name
+
+        self.assertRaises(frappe.ValidationError, mitglied.save, ignore_permissions=True)
+
+    def test_covered_contribution_rejects_covered_payer(self):
+        payer = make_mitglied(vorname="Zahlendes", nachname="Mitglied")
+        covered_payer = make_mitglied(
+            vorname="Ketten",
+            nachname="Zahler",
+            abrechnungsart="Beitrag wird uebernommen",
+            beitragszahler=payer.name,
+        )
+        covered = frappe.get_doc(
+            {
+                "doctype": "Mitglied",
+                "vorname": "Ungueltig",
+                "nachname": "Kette",
+                "eintrittsdatum": "2026-01-01",
+                "abrechnungsart": "Beitrag wird uebernommen",
+                "beitragszahler": covered_payer.name,
+            }
+        )
+
+        self.assertRaises(frappe.ValidationError, covered.insert, ignore_permissions=True)
+
+    def test_covered_contribution_rejects_free_payer(self):
+        payer = make_mitglied(vorname="Freies", nachname="Mitglied", abrechnungsart="Beitragsfrei")
+        covered = frappe.get_doc(
+            {
+                "doctype": "Mitglied",
+                "vorname": "Ungueltig",
+                "nachname": "Frei",
+                "eintrittsdatum": "2026-01-01",
+                "abrechnungsart": "Beitrag wird uebernommen",
+                "beitragszahler": payer.name,
+            }
+        )
+
+        self.assertRaises(frappe.ValidationError, covered.insert, ignore_permissions=True)
+
     def test_lastschrift_accepts_active_sepa_mandat(self):
         customer = make_customer("Lastschrift Mandat")
         mitglied = frappe.get_doc(
@@ -173,6 +276,18 @@ def make_customer(label: str):
         customer.territory = territory
 
     return customer.insert(ignore_permissions=True)
+
+
+def make_mitglied(**overrides):
+    data = {
+        "doctype": "Mitglied",
+        "vorname": "Mira",
+        "nachname": "Mitglied",
+        "eintrittsdatum": "2026-01-01",
+        "abrechnungsart": "Rechnung",
+    }
+    data.update(overrides)
+    return frappe.get_doc(data).insert(ignore_permissions=True)
 
 
 def make_bank():

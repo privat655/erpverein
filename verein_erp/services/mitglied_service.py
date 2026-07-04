@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cstr, getdate
+from frappe.utils import cstr, flt, getdate
 
 from verein_erp.services.sepa_mandat_service import (
     MANDATE_CATEGORY_MEMBERSHIP,
@@ -10,8 +10,17 @@ from verein_erp.services.sepa_mandat_service import (
 
 BILLING_TYPE_INVOICE = "Rechnung"
 BILLING_TYPE_DIRECT_DEBIT = "Lastschrift"
+BILLING_TYPE_COVERED = "Beitrag wird uebernommen"
+BILLING_TYPE_FREE = "Beitragsfrei"
+DEFAULT_ANNUAL_FEE = 350
 CUSTOMER_MITGLIED_FIELDNAME = "mitglied"
 MITGLIED_NAMING_SERIES = "MIT-.YYYY.-.#####"
+BILLING_TYPES = {
+    BILLING_TYPE_INVOICE,
+    BILLING_TYPE_DIRECT_DEBIT,
+    BILLING_TYPE_COVERED,
+    BILLING_TYPE_FREE,
+}
 
 
 def normalize_text(value: object) -> str | None:
@@ -32,6 +41,7 @@ def validate_mitglied(doc) -> None:
     normalize_mitglied(doc)
     validate_mitglied_dates(doc)
     validate_lastschrift_mandate(doc)
+    validate_billing(doc)
     validate_mitglied_customer_link(doc)
 
 
@@ -45,18 +55,22 @@ def normalize_mitglied(doc) -> None:
     doc.email = normalize_email(doc.email)
     doc.telefon = normalize_text(doc.telefon)
     doc.sepa_mandat = normalize_text(doc.get("sepa_mandat"))
+    doc.beitragszahler = normalize_text(doc.get("beitragszahler"))
     doc.abrechnungsart = normalize_text(doc.abrechnungsart) or BILLING_TYPE_INVOICE
     doc.mitglied_name = get_mitglied_display_name(doc.vorname, doc.nachname)
+    normalize_annual_fee(doc)
 
     if doc.name and not doc.name.startswith("New "):
         doc.mitglied_id = doc.name
 
-    if doc.abrechnungsart not in {BILLING_TYPE_INVOICE, BILLING_TYPE_DIRECT_DEBIT}:
-        frappe.throw(
-            _("Abrechnungsart muss entweder {0} oder {1} sein.").format(
-                frappe.bold(BILLING_TYPE_INVOICE), frappe.bold(BILLING_TYPE_DIRECT_DEBIT)
-            )
-        )
+
+def normalize_annual_fee(doc) -> None:
+    if doc.abrechnungsart == BILLING_TYPE_FREE:
+        doc.jahresbeitrag = 0
+        return
+
+    if doc.get("jahresbeitrag") in {None, ""}:
+        doc.jahresbeitrag = DEFAULT_ANNUAL_FEE
 
 
 def validate_mitglied_dates(doc) -> None:
@@ -65,6 +79,46 @@ def validate_mitglied_dates(doc) -> None:
 
     if doc.eintrittsdatum and doc.austrittsdatum and getdate(doc.austrittsdatum) < getdate(doc.eintrittsdatum):
         frappe.throw(_("Austrittsdatum darf nicht vor dem Eintrittsdatum liegen."))
+
+
+def validate_billing(doc) -> None:
+    if doc.abrechnungsart not in BILLING_TYPES:
+        frappe.throw(_("Ungueltige Abrechnungsart: {0}").format(frappe.bold(doc.abrechnungsart)))
+
+    annual_fee = flt(doc.jahresbeitrag)
+    if annual_fee < 0:
+        frappe.throw(_("Jahresbeitrag darf nicht negativ sein."))
+
+    if doc.abrechnungsart != BILLING_TYPE_FREE and annual_fee <= 0:
+        frappe.throw(_("Jahresbeitrag ist fuer diese Abrechnungsart erforderlich."))
+
+    if doc.abrechnungsart == BILLING_TYPE_FREE:
+        if doc.sepa_mandat or doc.beitragszahler:
+            frappe.throw(_("Beitragsfreie Mitglieder duerfen kein SEPA Mandat und keinen Beitragszahler haben."))
+        return
+
+    if doc.abrechnungsart == BILLING_TYPE_COVERED:
+        validate_contributing_member(doc)
+    elif doc.beitragszahler:
+        frappe.throw(_("Beitragszahler darf nur bei 'Beitrag wird uebernommen' gesetzt sein."))
+
+
+def validate_contributing_member(doc) -> None:
+    if not doc.beitragszahler:
+        frappe.throw(_("Beitragszahler ist erforderlich, wenn der Beitrag uebernommen wird."))
+
+    if doc.beitragszahler == doc.name:
+        frappe.throw(_("Ein Mitglied kann nicht sein eigener Beitragszahler sein."))
+
+    payer = frappe.db.get_value("Mitglied", doc.beitragszahler, ["abrechnungsart"], as_dict=True)
+    if not payer:
+        frappe.throw(_("Beitragszahler {0} existiert nicht.").format(frappe.bold(doc.beitragszahler)))
+
+    if payer.abrechnungsart == BILLING_TYPE_COVERED:
+        frappe.throw(_("Beitragszahler darf nicht selbst 'Beitrag wird uebernommen' haben."))
+
+    if payer.abrechnungsart == BILLING_TYPE_FREE:
+        frappe.throw(_("Beitragszahler darf nicht beitragsfrei sein."))
 
 
 def validate_lastschrift_mandate(doc) -> None:

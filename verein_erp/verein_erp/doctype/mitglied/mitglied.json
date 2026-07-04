@@ -29,7 +29,10 @@
   "eintrittsdatum",
   "austrittsdatum",
   "abrechnungsart",
+  "jahresbeitrag",
+  "abrechnung_section",
   "sepa_mandat",
+  "beitragszahler",
   "erpnext_section",
   "customer"
  ],
@@ -168,18 +171,43 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Abrechnungsart",
-   "options": "Rechnung\nLastschrift",
+   "options": "Rechnung\nLastschrift\nBeitrag wird uebernommen\nBeitragsfrei",
    "reqd": 1
   },
   {
+   "default": "350",
+   "fieldname": "jahresbeitrag",
+   "fieldtype": "Currency",
+   "label": "Jahresbeitrag",
+   "mandatory_depends_on": "eval:doc.abrechnungsart != 'Beitragsfrei'"
+  },
+  {
+   "fieldname": "abrechnung_section",
+   "fieldtype": "Section Break",
+   "label": "Abrechnung"
+  },
+  {
+   "depends_on": "eval:doc.abrechnungsart == 'Lastschrift'",
    "description": "Aktives SEPA-Mandat fuer Lastschrift. Wird aus dem SEPA Mandat synchronisiert.",
    "fieldname": "sepa_mandat",
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "SEPA Mandat",
+   "mandatory_depends_on": "eval:doc.abrechnungsart == 'Lastschrift'",
    "no_copy": 1,
    "options": "SEPA Mandat",
    "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.abrechnungsart == 'Beitrag wird uebernommen'",
+   "description": "Mitglied, das den Beitrag fuer dieses Mitglied uebernimmt.",
+   "fieldname": "beitragszahler",
+   "fieldtype": "Link",
+   "label": "Beitrag uebernommen von",
+   "mandatory_depends_on": "eval:doc.abrechnungsart == 'Beitrag wird uebernommen'",
+   "no_copy": 1,
+   "options": "Mitglied",
    "search_index": 1
   },
   {
@@ -205,7 +233,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-07-04 00:00:00.000000",
+ "modified": "2026-07-04 01:00:00.000000",
  "modified_by": "Administrator",
  "module": "verein_erp",
  "name": "Mitglied",
@@ -228,7 +256,7 @@
  ],
  "quick_entry": 0,
  "row_format": "Dynamic",
- "search_fields": "mitglied_id,fremd_id,mitglied_name,vorname,nachname,email,customer,sepa_mandat",
+ "search_fields": "mitglied_id,fremd_id,mitglied_name,vorname,nachname,email,customer,sepa_mandat,beitragszahler",
  "show_name_in_global_search": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
