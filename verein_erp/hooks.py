@@ -1,6 +1,6 @@
 app_name = "verein_erp"
-app_title = "Verein ERP"
-app_publisher = "Verein ERP"
+app_title = "ERPverein"
+app_publisher = "ERPverein"
 app_description = "Durable ERPNext customizations for Vereinsverwaltung"
 app_email = "admin@example.com"
 app_license = "MIT"
