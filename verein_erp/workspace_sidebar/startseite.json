@@ -1,0 +1,65 @@
+{
+ "app": "verein_erp",
+ "creation": "2026-07-04 13:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "home",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Start",
+   "link_to": "Startseite",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Mitglied",
+   "link_to": "Mitglied",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "SEPA Mandat",
+   "link_to": "SEPA Mandat",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Mitglied Subscription Lauf",
+   "link_to": "Mitglied Subscription Lauf",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-04 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "verein_erp",
+ "name": "Startseite",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Startseite"
+}

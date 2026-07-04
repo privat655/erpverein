@@ -24,6 +24,17 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(workspace["app"], "verein_erp")
         self.assertEqual(workspace["module"], "verein_erp")
 
+    def test_workspace_sidebar_json_defines_startseite_header(self):
+        sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "startseite.json"
+        sidebar = json.loads(sidebar_path.read_text())
+
+        self.assertEqual(sidebar["name"], "Startseite")
+        self.assertEqual(sidebar["title"], "Startseite")
+        self.assertEqual(sidebar["app"], "verein_erp")
+        self.assertEqual(sidebar["module"], "verein_erp")
+        self.assertEqual(sidebar["items"][0]["link_to"], "Startseite")
+        self.assertEqual(sidebar["items"][0]["link_type"], "Workspace")
+
     def test_patch_syncs_startseite_and_removes_legacy_workspace(self):
         frappe.delete_doc_if_exists("Workspace", "verein_erp", force=True)
         frappe.get_doc(
@@ -45,4 +56,7 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         workspace = frappe.get_doc("Workspace", "Startseite")
         self.assertEqual(workspace.title, "Startseite")
         self.assertEqual(workspace.app, "verein_erp")
+        sidebar = frappe.get_doc("Workspace Sidebar", "Startseite")
+        self.assertEqual(sidebar.title, "Startseite")
+        self.assertEqual(sidebar.app, "verein_erp")
         self.assertFalse(frappe.db.exists("Workspace", "verein_erp"))
