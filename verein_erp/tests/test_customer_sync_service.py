@@ -37,11 +37,15 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(customer.gender, "Male")
         self.assertEqual(customer.default_currency, "EUR")
         self.assertEqual(customer.image, "https://example.org/todor.jpg")
-        self.assertEqual(customer.email_id, "todor@example.org")
-        self.assertEqual(customer.mobile_no, "01234")
-        self.assertEqual(customer.first_name, "Todor")
-        self.assertEqual(customer.last_name, "Sync")
+        self.assertTrue(customer.customer_primary_contact)
         self.assertTrue(customer.customer_primary_address)
+
+        contact = frappe.get_doc("Contact", customer.customer_primary_contact)
+        self.assertEqual(contact.first_name, "Todor")
+        self.assertFalse(contact.middle_name)
+        self.assertEqual(contact.last_name, "Sync")
+        self.assertEqual(contact.email_id, "todor@example.org")
+        self.assertEqual(contact.mobile_no, "01234")
 
         address = frappe.get_doc("Address", customer.customer_primary_address)
         self.assertEqual(address.address_line1, "Musterstrasse 1")
@@ -50,10 +54,21 @@ class TestCustomerSyncService(IntegrationTestCase):
         self.assertEqual(address.country, "Germany")
 
         state = json.loads(customer.get(CUSTOMER_SYNC_STATE_FIELDNAME))
-        self.assertEqual(state["customer_fields"]["email_id"], "todor@example.org")
+        self.assertEqual(state["customer_fields"]["customer_name"], "Todor Sync")
+        self.assertEqual(state["customer_fields"]["image"], "https://example.org/todor.jpg")
+        self.assertNotIn("email_id", state["customer_fields"])
+        self.assertNotIn("mobile_no", state["customer_fields"])
+        self.assertNotIn("first_name", state["customer_fields"])
+        self.assertNotIn("last_name", state["customer_fields"])
         self.assertEqual(state["address"]["name"], address.name)
+        self.assertEqual(state["contact"]["name"], contact.name)
+        self.assertEqual(state["contact"]["fields"]["first_name"], "Todor")
+        self.assertFalse(state["contact"]["fields"]["middle_name"])
+        self.assertEqual(state["contact"]["fields"]["last_name"], "Sync")
+        self.assertEqual(state["contact"]["fields"]["email_id"], "todor@example.org")
+        self.assertEqual(state["contact"]["fields"]["mobile_no"], "01234")
 
-    def test_running_sync_updates_auto_managed_customer_fields(self):
+    def test_running_sync_updates_auto_managed_customer_name_and_image(self):
         mitglied = make_mitglied(email="old@example.org", telefon="111", picture_url="https://example.org/old.jpg")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
 
@@ -65,23 +80,26 @@ class TestCustomerSyncService(IntegrationTestCase):
 
         customer = frappe.get_doc("Customer", result["customer"])
         self.assertEqual(customer.customer_name, "Todor Updated")
-        self.assertEqual(customer.email_id, "new@example.org")
-        self.assertEqual(customer.mobile_no, "222")
         self.assertEqual(customer.image, "https://example.org/new.jpg")
-        self.assertEqual(customer.last_name, "Updated")
+        contact = frappe.get_doc("Contact", customer.customer_primary_contact)
+        self.assertEqual(contact.first_name, "Todor")
+        self.assertFalse(contact.middle_name)
+        self.assertEqual(contact.last_name, "Updated")
+        self.assertEqual(contact.email_id, "new@example.org")
+        self.assertEqual(contact.mobile_no, "222")
 
     def test_running_sync_keeps_manually_changed_customer_field(self):
-        mitglied = make_mitglied(email="old@example.org")
+        mitglied = make_mitglied(picture_url="https://example.org/old.jpg")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
         customer = frappe.get_doc("Customer", result["customer"])
-        customer.email_id = "manual@example.org"
+        customer.image = "https://example.org/manual.jpg"
         customer.save(ignore_permissions=True)
 
-        mitglied.email = "new@example.org"
+        mitglied.picture_url = "https://example.org/new.jpg"
         mitglied.save(ignore_permissions=True)
 
         customer.reload()
-        self.assertEqual(customer.email_id, "manual@example.org")
+        self.assertEqual(customer.image, "https://example.org/manual.jpg")
 
     def test_running_sync_keeps_manually_changed_address(self):
         mitglied = make_mitglied(strasse="Musterstrasse 1", plz="10115", ort="Berlin")
@@ -97,6 +115,23 @@ class TestCustomerSyncService(IntegrationTestCase):
         address.reload()
         self.assertEqual(address.address_line1, "Manuelle Strasse 9")
 
+    def test_running_sync_keeps_manually_changed_contact(self):
+        mitglied = make_mitglied(email="old@example.org", telefon="111")
+        result = create_or_sync_customer_for_mitglied(mitglied.name)
+        customer = frappe.get_doc("Customer", result["customer"])
+        contact = frappe.get_doc("Contact", customer.customer_primary_contact)
+        contact.first_name = "Manual"
+        contact.email_ids[0].email_id = "manual@example.org"
+        contact.save(ignore_permissions=True)
+
+        mitglied.vorname = "Updated"
+        mitglied.email = "new@example.org"
+        mitglied.save(ignore_permissions=True)
+
+        contact.reload()
+        self.assertEqual(contact.first_name, "Manual")
+        self.assertEqual(contact.email_id, "manual@example.org")
+
     def test_initial_sync_creates_customer_without_address_when_address_is_incomplete(self):
         mitglied = make_mitglied(strasse="", plz="", ort="")
 
@@ -105,6 +140,15 @@ class TestCustomerSyncService(IntegrationTestCase):
 
         self.assertTrue(result["created"])
         self.assertFalse(customer.customer_primary_address)
+
+    def test_initial_sync_does_not_create_contact_without_email_or_phone(self):
+        mitglied = make_mitglied()
+
+        result = create_or_sync_customer_for_mitglied(mitglied.name)
+        customer = frappe.get_doc("Customer", result["customer"])
+
+        self.assertTrue(result["created"])
+        self.assertFalse(customer.customer_primary_contact)
 
 
 def make_mitglied(**overrides):

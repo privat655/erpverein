@@ -18,10 +18,6 @@ DEFAULT_TERRITORY = "Germany"
 CUSTOMER_SYNC_FIELDS: dict[str, Callable] = {
     "customer_name": lambda mitglied: mitglied.mitglied_name,
     "image": lambda mitglied: mitglied.picture_url,
-    "email_id": lambda mitglied: mitglied.email,
-    "mobile_no": lambda mitglied: mitglied.telefon,
-    "first_name": lambda mitglied: mitglied.vorname,
-    "last_name": lambda mitglied: mitglied.nachname,
 }
 
 
@@ -113,6 +109,7 @@ def sync_customer_from_mitglied(mitglied, customer=None, force_initial: bool = F
     initial_customer_sync = force_initial or not state.get("customer_fields")
     changed = sync_customer_fields(mitglied, customer, state, force_initial=initial_customer_sync)
     changed = sync_customer_address(mitglied, customer, state, force_initial=force_initial) or changed
+    changed = sync_customer_contact(mitglied, customer, state, force_initial=force_initial) or changed
 
     if changed:
         customer.set(CUSTOMER_SYNC_STATE_FIELDNAME, dump_sync_state(state))
@@ -198,6 +195,104 @@ def create_customer_address(customer, desired: dict):
     return address
 
 
+def sync_customer_contact(mitglied, customer, state: dict, force_initial: bool = False) -> bool:
+    desired = get_desired_contact_fields(mitglied)
+    if not has_required_contact_data(desired):
+        return False
+
+    contact_state = state.setdefault("contact", {})
+    contact_name = contact_state.get("name") if frappe.db.exists("Contact", contact_state.get("name")) else None
+    if not contact_name:
+        contact_name = get_customer_primary_contact(customer)
+
+    if not contact_name:
+        contact = create_customer_contact(customer, desired)
+        contact_state["name"] = contact.name
+        contact_state["fields"] = desired
+        return set_customer_primary_contact_if_allowed(customer, contact.name, contact_state, force_initial=True) or True
+
+    contact = frappe.get_doc("Contact", contact_name)
+    contact.check_permission("write")
+    ensure_contact_links_customer(contact, customer.name)
+
+    previous_fields = contact_state.get("fields") or {}
+    current_fields = get_contact_sync_fields(contact)
+    can_update_contact = force_initial or bool(previous_fields and current_fields == previous_fields)
+    changed = False
+
+    if can_update_contact:
+        changed = apply_contact_fields(contact, desired)
+        if changed:
+            contact.save()
+        if previous_fields != desired:
+            contact_state["fields"] = desired
+            changed = True
+
+    contact_state["name"] = contact.name
+    changed = set_customer_primary_contact_if_allowed(customer, contact.name, contact_state, force_initial=force_initial) or changed
+    return changed
+
+
+def create_customer_contact(customer, desired: dict):
+    contact = frappe.new_doc("Contact")
+    apply_contact_fields(contact, desired)
+    contact.is_primary_contact = 1
+    contact.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+    contact.insert()
+    return contact
+
+
+def apply_contact_fields(contact, desired: dict) -> bool:
+    changed = False
+    for fieldname in ["first_name", "middle_name", "last_name"]:
+        if normalize_sync_value(contact.get(fieldname)) != desired[fieldname]:
+            contact.set(fieldname, desired[fieldname])
+            changed = True
+
+    if normalize_sync_value(contact.email_id) != desired["email_id"]:
+        contact.set("email_ids", [])
+        if desired["email_id"]:
+            contact.add_email(desired["email_id"], is_primary=True)
+        changed = True
+
+    if normalize_sync_value(contact.mobile_no) != desired["mobile_no"]:
+        contact.set("phone_nos", [])
+        if desired["mobile_no"]:
+            contact.add_phone(desired["mobile_no"], is_primary_mobile_no=True)
+        changed = True
+
+    return changed
+
+
+def ensure_contact_links_customer(contact, customer_name: str) -> None:
+    for link in contact.get("links") or []:
+        if link.link_doctype == "Customer" and link.link_name == customer_name:
+            return
+    contact.append("links", {"link_doctype": "Customer", "link_name": customer_name})
+    contact.save()
+
+
+def set_customer_primary_contact_if_allowed(customer, contact_name: str, contact_state: dict, force_initial: bool = False) -> bool:
+    if not frappe.get_meta("Customer").has_field("customer_primary_contact"):
+        return False
+
+    previous_primary = normalize_sync_value(contact_state.get("customer_primary_contact"))
+    current_primary = normalize_sync_value(customer.get("customer_primary_contact"))
+    if not force_initial and previous_primary and current_primary != previous_primary:
+        return False
+
+    if current_primary != contact_name:
+        customer.set("customer_primary_contact", contact_name)
+        contact_state["customer_primary_contact"] = contact_name
+        return True
+
+    if previous_primary != contact_name:
+        contact_state["customer_primary_contact"] = contact_name
+        return True
+
+    return False
+
+
 def ensure_address_links_customer(address, customer_name: str) -> None:
     for link in address.get("links") or []:
         if link.link_doctype == "Customer" and link.link_name == customer_name:
@@ -236,8 +331,22 @@ def get_desired_address_fields(mitglied) -> dict:
     }
 
 
+def get_desired_contact_fields(mitglied) -> dict:
+    return {
+        "first_name": normalize_sync_value(mitglied.vorname),
+        "middle_name": "",
+        "last_name": normalize_sync_value(mitglied.nachname),
+        "email_id": normalize_sync_value(mitglied.email),
+        "mobile_no": normalize_sync_value(mitglied.telefon),
+    }
+
+
 def has_required_address_data(address_fields: dict) -> bool:
     return bool(address_fields.get("address_line1") and address_fields.get("city") and address_fields.get("country"))
+
+
+def has_required_contact_data(contact_fields: dict) -> bool:
+    return bool(contact_fields.get("email_id") or contact_fields.get("mobile_no"))
 
 
 def get_address_sync_fields(address) -> dict:
@@ -249,9 +358,25 @@ def get_address_sync_fields(address) -> dict:
     }
 
 
+def get_contact_sync_fields(contact) -> dict:
+    return {
+        "first_name": normalize_sync_value(contact.first_name),
+        "middle_name": normalize_sync_value(contact.middle_name),
+        "last_name": normalize_sync_value(contact.last_name),
+        "email_id": normalize_sync_value(contact.email_id),
+        "mobile_no": normalize_sync_value(contact.mobile_no),
+    }
+
+
 def get_customer_primary_address(customer) -> str | None:
     if frappe.get_meta("Customer").has_field("customer_primary_address"):
         return customer.get("customer_primary_address") or None
+    return None
+
+
+def get_customer_primary_contact(customer) -> str | None:
+    if frappe.get_meta("Customer").has_field("customer_primary_contact"):
+        return customer.get("customer_primary_contact") or None
     return None
 
 
