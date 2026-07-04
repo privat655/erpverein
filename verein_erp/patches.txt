@@ -5,4 +5,4 @@ verein_erp.patches.v0_1.p0001_sync_mitglied_custom_fields
 verein_erp.patches.v0_1.p0002_add_customer_sync_state_field
 verein_erp.patches.v0_1.p0003_sync_salutations
 verein_erp.patches.v0_1.p0004_sync_sepa_bank_account_fields
-verein_erp.patches.v0_1.p0005_sync_subscription_fields
+verein_erp.patches.v0_1.p0006_remove_subscription_custom_fields

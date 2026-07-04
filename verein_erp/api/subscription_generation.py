@@ -17,7 +17,6 @@ def create_run(mitglied: str | None = None, mitglieder_json: str | None = None) 
     else:
         mitglieder = json.loads(mitglieder_json) if mitglieder_json else []
         run = create_run_for_selection(mitglieder)
-
     return {"run": run.name}
 
 
