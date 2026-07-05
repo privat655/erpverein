@@ -38,7 +38,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Entwurf\nVorschau erstellt\nAusgefuehrt\nTeilweise fehlgeschlagen\nAbgebrochen",
+    "options": "Entwurf\nVorschau erstellt\nIn Bearbeitung\nAusgefuehrt\nTeilweise fehlgeschlagen\nAbgebrochen",
    "read_only": 1
   },
   {

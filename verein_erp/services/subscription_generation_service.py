@@ -16,6 +16,7 @@ from verein_erp.services.mitglied_service import (
 
 RUN_STATUS_DRAFT = "Entwurf"
 RUN_STATUS_PREVIEW = "Vorschau erstellt"
+RUN_STATUS_RUNNING = "In Bearbeitung"
 RUN_STATUS_EXECUTED = "Ausgefuehrt"
 RUN_STATUS_PARTIAL = "Teilweise fehlgeschlagen"
 RUN_DOCTYPE = "Beitragsabrechnung"
@@ -411,6 +412,10 @@ def create_subscriptions_from_preview(run_name: str) -> dict:
     run.check_permission("write")
     if not run.preview_rows:
         frappe.throw(_("Bitte zuerst eine Vorschau anzeigen."))
+
+    run.status = RUN_STATUS_RUNNING
+    run.result_summary = json.dumps({"status": "running"}, sort_keys=True)
+    run.save()
 
     created = skipped = errors = 0
     for row in run.preview_rows:

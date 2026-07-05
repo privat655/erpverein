@@ -28,18 +28,11 @@ frappe.ui.form.on("Beitragsabrechnung", {
                 method: "verein_erp.api.subscription_generation.create_subscriptions",
                 args: { run: frm.doc.name },
                 freeze: true,
-                freeze_message: __("Beitraege werden abgerechnet..."),
+                freeze_message: __("Beitragsabrechnung wird gestartet..."),
                 callback(r) {
                   if (!r.exc) {
                     frm.reload_doc();
-                    const result = r.message || {};
-                    frappe.msgprint(
-                      __("Abgerechnet: {0}. Uebersprungen: {1}. Fehler: {2}.", [
-                        result.created || 0,
-                        result.skipped || 0,
-                        result.errors || 0,
-                      ])
-                    );
+                    frappe.msgprint(__("Beitragsabrechnung wurde im Hintergrund gestartet. Bitte aktualisieren Sie den Datensatz, um das Ergebnis zu sehen."));
                   }
                 },
               });
@@ -47,6 +40,10 @@ frappe.ui.form.on("Beitragsabrechnung", {
           }
         );
       });
+    }
+
+    if (frm.doc.status === "In Bearbeitung") {
+      frm.add_custom_button(__("Status aktualisieren"), () => frm.reload_doc());
     }
   },
 });

@@ -1,13 +1,17 @@
 import json
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
 
 from verein_erp.custom_fields import sync_custom_fields
+from verein_erp.api.subscription_generation import create_subscriptions
 from verein_erp.services.subscription_generation_service import (
     ACTION_CONFLICT,
     ACTION_CREATE,
     ACTION_ERROR,
+    RUN_STATUS_RUNNING,
     build_subscription_preview,
     estimate_invoice_count,
     get_erpnext_generate_invoice_at,
@@ -113,6 +117,28 @@ class TestSubscriptionGenerationService(IntegrationTestCase):
         period = frappe._dict({"from_date": "2023-01-01", "to_date": None})
 
         self.assertEqual(estimate_invoice_count(period, "Beginning of the current subscription period"), 4)
+
+    def test_create_subscriptions_enqueues_long_background_job(self):
+        plan_250 = make_subscription_plan(250)
+        plan_350 = make_subscription_plan(350)
+        customer = make_customer("Subscription Queue")
+        payer = make_mitglied(customer=customer.name, abrechnungsart="Rechnung", jahresbeitrag=350)
+        run = make_run(payer.name, plan_250.name, plan_350.name)
+        build_subscription_preview(run.name)
+
+        with patch("frappe.enqueue", return_value=SimpleNamespace(id="job-1")) as enqueue:
+            result = create_subscriptions(run.name)
+
+        run.reload()
+        self.assertEqual(result, {"run": run.name, "job_id": "job-1"})
+        self.assertEqual(run.status, RUN_STATUS_RUNNING)
+        enqueue.assert_called_once()
+        self.assertEqual(enqueue.call_args.kwargs["queue"], "long")
+        self.assertEqual(enqueue.call_args.kwargs["run_name"], run.name)
+        self.assertEqual(
+            enqueue.call_args.args[0],
+            "verein_erp.services.subscription_generation_service.create_subscriptions_from_preview",
+        )
 
 
 def make_run(mitglied: str, plan_250: str, plan_350: str):

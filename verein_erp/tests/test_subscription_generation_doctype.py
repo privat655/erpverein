@@ -8,6 +8,11 @@ class TestSubscriptionGenerationDoctype(IntegrationTestCase):
 
         self.assertFalse(meta.title_field)
 
+    def test_run_doctype_has_background_processing_status(self):
+        meta = frappe.get_meta("Beitragsabrechnung", cached=False)
+
+        self.assertIn("In Bearbeitung", meta.get_field("status").options.split("\n"))
+
     def test_period_child_table_has_only_period_and_plan_fields(self):
         meta = frappe.get_meta("Beitragsabrechnung Periode", cached=False)
 
