@@ -94,7 +94,7 @@ def validate_billing(doc) -> None:
 
     if doc.abrechnungsart == BILLING_TYPE_FREE:
         if doc.sepa_mandat or doc.beitragszahler:
-            frappe.throw(_("Beitragsfreie Mitglieder duerfen kein SEPA Mandat und keinen Beitragszahler haben."))
+            frappe.throw(_("Beitragsfreie Mitglieder duerfen kein SEPA-Mandat und keinen Beitragszahler haben."))
         return
 
     if doc.abrechnungsart == BILLING_TYPE_COVERED:
@@ -133,7 +133,7 @@ def validate_lastschrift_mandate(doc) -> None:
         return
 
     if not doc.sepa_mandat:
-        frappe.throw(_("Ein aktives SEPA Mandat ist fuer Lastschrift erforderlich."))
+        frappe.throw(_("Ein aktives SEPA-Mandat ist fuer Lastschrift erforderlich."))
 
 
 def get_active_sepa_mandat_for_mitglied(mitglied: str | None) -> str | None:
@@ -160,7 +160,7 @@ def validate_sepa_mandat_link(doc, sepa_mandat: str) -> None:
         as_dict=True,
     )
     if not mandate:
-        frappe.throw(_("SEPA Mandat {0} existiert nicht.").format(frappe.bold(sepa_mandat)))
+        frappe.throw(_("SEPA-Mandat {0} existiert nicht.").format(frappe.bold(sepa_mandat)))
 
     if (
         mandate.status != MANDATE_STATUS_ACTIVE
@@ -168,7 +168,7 @@ def validate_sepa_mandat_link(doc, sepa_mandat: str) -> None:
         or mandate.bezugs_doctype != "Mitglied"
         or mandate.bezugs_name != doc.name
     ):
-        frappe.throw(_("SEPA Mandat {0} ist kein aktives Mandat fuer dieses Mitglied.").format(frappe.bold(sepa_mandat)))
+        frappe.throw(_("SEPA-Mandat {0} ist kein aktives Mandat fuer dieses Mitglied.").format(frappe.bold(sepa_mandat)))
 
 
 def validate_mitglied_customer_link(doc) -> None:
@@ -190,7 +190,7 @@ def validate_mitglied_customer_link(doc) -> None:
     )
     if other_mitglied:
         frappe.throw(
-            _("Customer {0} ist bereits mit Mitglied {1} verknuepft.").format(
+            _("Kunde {0} ist bereits mit Mitglied {1} verknuepft.").format(
                 frappe.bold(current_customer), frappe.bold(other_mitglied)
             )
         )
@@ -201,7 +201,7 @@ def validate_mitglied_customer_link(doc) -> None:
     linked_mitglied = frappe.db.get_value("Customer", current_customer, CUSTOMER_MITGLIED_FIELDNAME)
     if linked_mitglied and linked_mitglied != doc.name:
         frappe.throw(
-            _("Customer {0} verweist bereits auf Mitglied {1}.").format(
+            _("Kunde {0} verweist bereits auf Mitglied {1}.").format(
                 frappe.bold(current_customer), frappe.bold(linked_mitglied)
             )
         )
@@ -225,7 +225,7 @@ def validate_customer_membership_link(doc, method: str | None = None) -> None:
     linked_customer = frappe.db.get_value("Mitglied", mitglied, "customer")
     if linked_customer and linked_customer != doc.name:
         frappe.throw(
-            _("Mitglied {0} ist bereits mit Customer {1} verknuepft.").format(
+            _("Mitglied {0} ist bereits mit Kunde {1} verknuepft.").format(
                 frappe.bold(mitglied), frappe.bold(linked_customer)
             )
         )
@@ -237,7 +237,7 @@ def validate_customer_membership_link(doc, method: str | None = None) -> None:
     )
     if other_customer:
         frappe.throw(
-            _("Mitglied {0} ist bereits bei Customer {1} eingetragen.").format(
+            _("Mitglied {0} ist bereits bei Kunde {1} eingetragen.").format(
                 frappe.bold(mitglied), frappe.bold(other_customer)
             )
         )

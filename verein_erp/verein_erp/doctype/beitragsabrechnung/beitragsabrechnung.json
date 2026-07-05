@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 0,
- "autoname": "MSL-.YYYY.-.#####",
+ "autoname": "BA-.YYYY.-.#####",
  "creation": "2026-07-04 03:00:00.000000",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -30,7 +30,7 @@
   "result_summary"
  ],
  "fields": [
-  {"fieldname": "lauf_section", "fieldtype": "Section Break", "label": "Lauf"},
+   {"fieldname": "lauf_section", "fieldtype": "Section Break", "label": "Abrechnung"},
   {
    "default": "Entwurf",
    "fieldname": "status",
@@ -59,32 +59,32 @@
    "options": "Mitglied"
   },
   {"fieldname": "selected_mitglieder_json", "fieldtype": "Long Text", "hidden": 1, "label": "Ausgewaehlte Mitglieder JSON"},
-  {"fieldname": "settings_section", "fieldtype": "Section Break", "label": "Subscription Einstellungen"},
+   {"fieldname": "settings_section", "fieldtype": "Section Break", "label": "Abrechnungseinstellungen"},
   {"fieldname": "company", "fieldtype": "Link", "in_list_view": 1, "label": "Unternehmen", "options": "Company", "reqd": 1},
   {"fieldname": "cost_center", "fieldtype": "Link", "label": "Kostenstelle", "options": "Cost Center", "reqd": 1},
   {"fieldname": "settings_column_break", "fieldtype": "Column Break"},
-  {"default": "1", "fieldname": "submit_invoice", "fieldtype": "Check", "label": "Generierte Rechnungen buchen", "read_only": 1},
-  {"default": "1", "fieldname": "generate_new_invoices_past_due_date", "fieldtype": "Check", "label": "Generate New Invoices Past Due Date"},
+   {"default": "1", "fieldname": "submit_invoice", "fieldtype": "Check", "label": "Rechnungen automatisch buchen", "read_only": 1},
+   {"default": "1", "fieldname": "generate_new_invoices_past_due_date", "fieldtype": "Check", "label": "Nachtraegliche Rechnungen erstellen"},
   {
-   "default": "Beginning of the current subscription period",
+    "default": "Periodenbeginn",
    "fieldname": "generate_invoice_at",
    "fieldtype": "Select",
-   "label": "Rechnung erstellen am",
-   "options": "End of the current subscription period\nBeginning of the current subscription period\nDays before the current subscription period",
+    "label": "Rechnung erstellen",
+    "options": "Periodenende\nPeriodenbeginn\nTage vor Periodenbeginn",
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.generate_invoice_at == 'Days before the current subscription period'",
+    "depends_on": "eval:doc.generate_invoice_at == 'Tage vor Periodenbeginn'",
    "fieldname": "number_of_days",
    "fieldtype": "Int",
-   "label": "Number of Days",
-   "mandatory_depends_on": "eval:doc.generate_invoice_at == 'Days before the current subscription period'"
+    "label": "Tage vor Periodenbeginn",
+    "mandatory_depends_on": "eval:doc.generate_invoice_at == 'Tage vor Periodenbeginn'"
   },
   {"default": "0", "fieldname": "days_until_due", "fieldtype": "Int", "label": "Tage bis Faelligkeit"},
   {"fieldname": "periods_section", "fieldtype": "Section Break", "label": "Beitragsperioden"},
-  {"fieldname": "periods", "fieldtype": "Table", "label": "Perioden", "options": "Mitglied Subscription Lauf Periode", "reqd": 1},
+   {"fieldname": "periods", "fieldtype": "Table", "label": "Perioden", "options": "Beitragsabrechnung Periode", "reqd": 1},
   {"fieldname": "preview_section", "fieldtype": "Section Break", "label": "Vorschau"},
-  {"fieldname": "preview_rows", "fieldtype": "Table", "label": "Vorschau", "options": "Mitglied Subscription Lauf Vorschau", "read_only": 1},
+   {"fieldname": "preview_rows", "fieldtype": "Table", "label": "Vorschau", "options": "Beitragsabrechnung Vorschau", "read_only": 1},
   {"fieldname": "result_section", "fieldtype": "Section Break", "label": "Ergebnis"},
   {"fieldname": "result_summary", "fieldtype": "Long Text", "label": "Ergebnis", "read_only": 1}
  ],
@@ -96,7 +96,7 @@
  "modified": "2026-07-04 03:00:00.000000",
  "modified_by": "Administrator",
  "module": "verein_erp",
- "name": "Mitglied Subscription Lauf",
+  "name": "Beitragsabrechnung",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

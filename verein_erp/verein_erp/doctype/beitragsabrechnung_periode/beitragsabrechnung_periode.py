@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class MitgliedSubscriptionLaufPeriode(Document):
+class BeitragsabrechnungPeriode(Document):
     pass

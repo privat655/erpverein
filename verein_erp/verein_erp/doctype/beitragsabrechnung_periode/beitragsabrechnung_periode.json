@@ -9,7 +9,7 @@
  "fields": [
   {"fieldname": "from_date", "fieldtype": "Date", "in_list_view": 1, "label": "Von", "reqd": 1},
   {"fieldname": "to_date", "fieldtype": "Date", "in_list_view": 1, "label": "Bis"},
-  {"fieldname": "subscription_plan", "fieldtype": "Link", "in_list_view": 1, "label": "Subscription Plan", "options": "Subscription Plan"}
+   {"fieldname": "subscription_plan", "fieldtype": "Link", "in_list_view": 1, "label": "Beitragsplan", "options": "Subscription Plan"}
  ],
  "idx": 1,
  "istable": 1,
@@ -17,7 +17,7 @@
  "modified": "2026-07-04 03:00:00.000000",
  "modified_by": "Administrator",
  "module": "verein_erp",
- "name": "Mitglied Subscription Lauf Periode",
+  "name": "Beitragsabrechnung Periode",
  "owner": "Administrator",
  "permissions": [],
  "quick_entry": 1,

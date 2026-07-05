@@ -12,6 +12,14 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         super().setUpClass()
         sync_custom_fields()
 
+    def test_user_facing_labels_are_german(self):
+        meta = frappe.get_meta("SEPA Mandat", cached=False)
+
+        self.assertEqual(meta.get_field("mandat_section").label, "SEPA-Mandat")
+        self.assertEqual(meta.get_field("bezugs_doctype").label, "Referenztyp")
+        self.assertEqual(meta.get_field("customer").label, "Kunde")
+        self.assertEqual(meta.get_field("bank_account").label, "Bankkonto")
+
     def test_active_membership_mandat_syncs_member_and_bank_account(self):
         customer = make_customer("SEPA Sync")
         mitglied = make_mitglied(customer=customer.name)

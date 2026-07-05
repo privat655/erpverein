@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class MitgliedSubscriptionLaufVorschau(Document):
+class BeitragsabrechnungVorschau(Document):
     pass

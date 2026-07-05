@@ -136,7 +136,7 @@ def validate_unique_mandate_reference(doc) -> None:
     )
     if other_mandat:
         frappe.throw(
-            _("Mandatsreferenz {0} ist bereits bei SEPA Mandat {1} eingetragen.").format(
+            _("Mandatsreferenz {0} ist bereits bei SEPA-Mandat {1} eingetragen.").format(
                 frappe.bold(doc.mandatsreferenz), frappe.bold(other_mandat)
             )
         )
@@ -153,7 +153,7 @@ def validate_active_mandate(doc) -> None:
         "kontoinhaber": _("Kontoinhaber"),
         "iban": _("IBAN"),
         "bank": _("Bank"),
-        "customer": _("Customer"),
+        "customer": _("Kunde"),
     }
     missing = [label for fieldname, label in required_fields.items() if not doc.get(fieldname)]
     if missing:
@@ -172,7 +172,7 @@ def validate_active_mandate(doc) -> None:
     )
     if other_active:
         frappe.throw(
-            _("Fuer {0} {1} existiert bereits ein aktives SEPA Mandat: {2}").format(
+            _("Fuer {0} {1} existiert bereits ein aktives SEPA-Mandat: {2}").format(
                 frappe.bold(doc.bezugs_doctype), frappe.bold(doc.bezugs_name), frappe.bold(other_active)
             )
         )
@@ -263,7 +263,7 @@ def get_existing_bank_account_for_mandat(doc) -> str | None:
     )
     if len(matches) > 1:
         frappe.throw(
-            _("Mehrere Bank Accounts fuer Customer {0} und IBAN {1} gefunden.").format(
+            _("Mehrere Bankkonten fuer Kunde {0} und IBAN {1} gefunden.").format(
                 frappe.bold(doc.customer), frappe.bold(doc.iban)
             )
         )
@@ -294,7 +294,7 @@ def ensure_shared_bank_account_is_safe(doc, bank_account, desired: dict) -> None
         target = normalize_text(desired.get(fieldname))
         if current and target and current != target:
             frappe.throw(
-                _("Bank Account {0} wird von weiteren aktiven Mandaten genutzt und darf nicht widerspruechlich geaendert werden.").format(
+                _("Bankkonto {0} wird von weiteren aktiven Mandaten genutzt und darf nicht widerspruechlich geaendert werden.").format(
                     frappe.bold(bank_account.name)
                 )
             )
@@ -335,7 +335,7 @@ def apply_bank_account_fields(bank_account, desired: dict, force: bool = False) 
             next_state[fieldname] = value
         elif current != desired_value:
             frappe.throw(
-                _("Bank Account {0} wurde manuell geaendert. Bitte pruefen Sie die Bankdaten vor dem Mandats-Sync.").format(
+                _("Bankkonto {0} wurde manuell geaendert. Bitte pruefen Sie die Bankdaten vor dem Mandats-Sync.").format(
                     frappe.bold(bank_account.name)
                 )
             )

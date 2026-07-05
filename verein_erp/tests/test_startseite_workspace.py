@@ -23,6 +23,10 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(workspace["label"], "Startseite")
         self.assertEqual(workspace["app"], "verein_erp")
         self.assertEqual(workspace["module"], "verein_erp")
+        links = {link["link_to"]: link["label"] for link in workspace["links"] if link.get("link_to")}
+        self.assertEqual(links["Mitglied"], "Mitglieder")
+        self.assertEqual(links["SEPA Mandat"], "SEPA-Mandate")
+        self.assertEqual(links["Beitragsabrechnung"], "Beitragsabrechnungen")
 
     def test_workspace_sidebar_json_defines_startseite_header(self):
         sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "startseite.json"
@@ -34,6 +38,10 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(sidebar["module"], "verein_erp")
         self.assertEqual(sidebar["items"][0]["link_to"], "Startseite")
         self.assertEqual(sidebar["items"][0]["link_type"], "Workspace")
+        links = {item["link_to"]: item["label"] for item in sidebar["items"]}
+        self.assertEqual(links["Mitglied"], "Mitglieder")
+        self.assertEqual(links["SEPA Mandat"], "SEPA-Mandate")
+        self.assertEqual(links["Beitragsabrechnung"], "Beitragsabrechnungen")
 
     def test_patch_syncs_startseite_and_removes_legacy_workspace(self):
         frappe.delete_doc_if_exists("Workspace", "verein_erp", force=True)

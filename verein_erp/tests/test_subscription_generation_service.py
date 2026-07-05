@@ -10,6 +10,7 @@ from verein_erp.services.subscription_generation_service import (
     ACTION_ERROR,
     build_subscription_preview,
     estimate_invoice_count,
+    get_erpnext_generate_invoice_at,
     suggest_subscription_plans,
 )
 
@@ -103,19 +104,27 @@ class TestSubscriptionGenerationService(IntegrationTestCase):
     def test_estimate_invoice_count_does_not_include_2027_before_2027(self):
         period = frappe._dict({"from_date": "2023-01-01", "to_date": None})
 
+        self.assertEqual(estimate_invoice_count(period, "Periodenbeginn"), 4)
+
+    def test_german_invoice_timing_maps_to_erpnext_subscription_value(self):
+        self.assertEqual(get_erpnext_generate_invoice_at("Periodenbeginn"), "Beginning of the current subscription period")
+
+    def test_legacy_invoice_timing_still_estimates_current_period(self):
+        period = frappe._dict({"from_date": "2023-01-01", "to_date": None})
+
         self.assertEqual(estimate_invoice_count(period, "Beginning of the current subscription period"), 4)
 
 
 def make_run(mitglied: str, plan_250: str, plan_350: str):
     return frappe.get_doc(
         {
-            "doctype": "Mitglied Subscription Lauf",
+            "doctype": "Beitragsabrechnung",
             "scope": "Einzelnes Mitglied",
             "mitglied": mitglied,
             "company": get_company(),
             "cost_center": get_cost_center(),
             "generate_new_invoices_past_due_date": 1,
-            "generate_invoice_at": "Beginning of the current subscription period",
+            "generate_invoice_at": "Periodenbeginn",
             "periods": [
                 {"from_date": "2016-01-01", "to_date": "2022-12-31", "subscription_plan": plan_250},
                 {"from_date": "2023-01-01", "subscription_plan": plan_350},

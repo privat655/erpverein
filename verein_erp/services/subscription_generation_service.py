@@ -18,6 +18,7 @@ RUN_STATUS_DRAFT = "Entwurf"
 RUN_STATUS_PREVIEW = "Vorschau erstellt"
 RUN_STATUS_EXECUTED = "Ausgefuehrt"
 RUN_STATUS_PARTIAL = "Teilweise fehlgeschlagen"
+RUN_DOCTYPE = "Beitragsabrechnung"
 SCOPE_SINGLE = "Einzelnes Mitglied"
 SCOPE_SELECTED = "Ausgewaehlte Mitglieder"
 SCOPE_ALL = "Alle Mitglieder"
@@ -26,7 +27,21 @@ ACTION_CONFLICT = "Conflict"
 ACTION_ERROR = "Error"
 ACTION_CREATED = "Created"
 ACTION_SKIPPED = "Skipped"
-DEFAULT_GENERATE_INVOICE_AT = "Beginning of the current subscription period"
+INVOICE_AT_PERIOD_END = "Periodenende"
+INVOICE_AT_PERIOD_START = "Periodenbeginn"
+INVOICE_AT_DAYS_BEFORE = "Tage vor Periodenbeginn"
+ERP_INVOICE_AT_PERIOD_END = "End of the current subscription period"
+ERP_INVOICE_AT_PERIOD_START = "Beginning of the current subscription period"
+ERP_INVOICE_AT_DAYS_BEFORE = "Days before the current subscription period"
+DEFAULT_GENERATE_INVOICE_AT = INVOICE_AT_PERIOD_START
+ERP_GENERATE_INVOICE_AT_VALUES = {
+    INVOICE_AT_PERIOD_END: ERP_INVOICE_AT_PERIOD_END,
+    INVOICE_AT_PERIOD_START: ERP_INVOICE_AT_PERIOD_START,
+    INVOICE_AT_DAYS_BEFORE: ERP_INVOICE_AT_DAYS_BEFORE,
+    ERP_INVOICE_AT_PERIOD_END: ERP_INVOICE_AT_PERIOD_END,
+    ERP_INVOICE_AT_PERIOD_START: ERP_INVOICE_AT_PERIOD_START,
+    ERP_INVOICE_AT_DAYS_BEFORE: ERP_INVOICE_AT_DAYS_BEFORE,
+}
 HISTORICAL_RATE_CUTOFF = "2023-01-01"
 PAYING_BILLING_TYPES = {BILLING_TYPE_INVOICE, BILLING_TYPE_DIRECT_DEBIT}
 
@@ -106,7 +121,7 @@ def get_subscription_plan_amount(plan: str, price_determination: str | None = No
 
 
 def create_subscription_run(scope: str = SCOPE_ALL, mitglied: str | None = None, mitglieder: list[str] | None = None):
-    run = frappe.new_doc("Mitglied Subscription Lauf")
+    run = frappe.new_doc(RUN_DOCTYPE)
     run.scope = scope
     run.mitglied = mitglied
     if mitglieder:
@@ -126,7 +141,7 @@ def create_run_for_selection(mitglieder: list[str] | None = None):
 
 
 def create_subscription_run(scope: str = SCOPE_ALL, mitglied: str | None = None, mitglieder: list[str] | None = None):
-    run = frappe.new_doc("Mitglied Subscription Lauf")
+    run = frappe.new_doc(RUN_DOCTYPE)
     run.scope = scope
     run.mitglied = mitglied
     if mitglieder:
@@ -146,7 +161,7 @@ def create_run_for_selection(mitglieder: list[str] | None = None):
 
 
 def build_subscription_preview(run_name: str) -> dict:
-    run = frappe.get_doc("Mitglied Subscription Lauf", run_name)
+    run = frappe.get_doc(RUN_DOCTYPE, run_name)
     run.check_permission("write")
     set_subscription_run_defaults(run)
     run.set("preview_rows", [])
@@ -247,7 +262,7 @@ def make_preview_rows_for_payer(run, payer: MemberBillingInfo, members: list[Mem
     if payer.abrechnungsart == BILLING_TYPE_FREE:
         return []
     if not payer.customer:
-        return [make_error_row(payer, _("Beitragszahler hat keinen Customer."))]
+        return [make_error_row(payer, _("Beitragszahler hat keinen Kunden."))]
 
     rows = []
     periods_by_range = defaultdict(list)
@@ -266,18 +281,18 @@ def build_plan_lines_for_period(members: list[MemberBillingInfo], periods, perio
     if is_historical_period(period_key[1]):
         period = periods[0] if periods else None
         if not period or not period.subscription_plan:
-            return [], [_("Subscription Plan fehlt fuer historische Periode {0}.").format(frappe.bold(period_key[0]))]
+            return [], [_("Beitragsplan fehlt fuer historische Periode {0}.").format(frappe.bold(period_key[0]))]
         return [{"plan": period.subscription_plan, "qty": len(members)}], []
 
     plan_amounts = []
     errors = []
     for period in periods:
         if not period.subscription_plan:
-            errors.append(_("Subscription Plan fehlt fuer Periode {0}.").format(frappe.bold(period_key[0])))
+            errors.append(_("Beitragsplan fehlt fuer Periode {0}.").format(frappe.bold(period_key[0])))
             continue
         amount = get_subscription_plan_amount(period.subscription_plan)
         if not amount:
-            errors.append(_("Betrag fuer Subscription Plan {0} konnte nicht ermittelt werden.").format(frappe.bold(period.subscription_plan)))
+            errors.append(_("Betrag fuer Beitragsplan {0} konnte nicht ermittelt werden.").format(frappe.bold(period.subscription_plan)))
             continue
         plan_amounts.append((period.subscription_plan, amount))
 
@@ -292,7 +307,7 @@ def build_plan_lines_for_period(members: list[MemberBillingInfo], periods, perio
     for member in members:
         if member.name not in matched:
             errors.append(
-                _("Kein Subscription Plan fuer Jahresbeitrag {0} in Periode {1} gefunden.").format(
+                _("Kein Beitragsplan fuer Jahresbeitrag {0} in Periode {1} gefunden.").format(
                     frappe.bold(member.jahresbeitrag), frappe.bold(period_key[0])
                 )
             )
@@ -320,7 +335,7 @@ def make_preview_row(run, payer: MemberBillingInfo, period_from, period_to, plan
         "existing_subscription": existing_subscription,
         "estimated_invoice_count": estimate_invoice_count(frappe._dict({"from_date": period_from, "to_date": period_to}), run.generate_invoice_at, run.number_of_days),
         "action": action,
-        "message": _("Vorhandene Subscription fuer Customer/Zeitraum gefunden.") if existing_subscription else "",
+        "message": _("Vorhandenes Abo fuer Kunde/Zeitraum gefunden.") if existing_subscription else "",
     }
 
 
@@ -369,18 +384,33 @@ def estimate_invoice_count(period, generate_invoice_at: str, number_of_days: int
 
 
 def get_invoice_trigger_date(period_start, period_end, generate_invoice_at: str, number_of_days: int = 0):
-    if generate_invoice_at == "Beginning of the current subscription period":
+    invoice_timing = normalize_generate_invoice_at(generate_invoice_at)
+    if invoice_timing == INVOICE_AT_PERIOD_START:
         return period_start
-    if generate_invoice_at == "Days before the current subscription period":
+    if invoice_timing == INVOICE_AT_DAYS_BEFORE:
         return add_days(period_start, -cint(number_of_days))
     return period_end
 
 
+def normalize_generate_invoice_at(generate_invoice_at: str | None) -> str:
+    if generate_invoice_at == ERP_INVOICE_AT_PERIOD_END:
+        return INVOICE_AT_PERIOD_END
+    if generate_invoice_at == ERP_INVOICE_AT_PERIOD_START:
+        return INVOICE_AT_PERIOD_START
+    if generate_invoice_at == ERP_INVOICE_AT_DAYS_BEFORE:
+        return INVOICE_AT_DAYS_BEFORE
+    return generate_invoice_at or INVOICE_AT_PERIOD_START
+
+
+def get_erpnext_generate_invoice_at(generate_invoice_at: str | None) -> str:
+    return ERP_GENERATE_INVOICE_AT_VALUES.get(generate_invoice_at or INVOICE_AT_PERIOD_START, ERP_INVOICE_AT_PERIOD_START)
+
+
 def create_subscriptions_from_preview(run_name: str) -> dict:
-    run = frappe.get_doc("Mitglied Subscription Lauf", run_name)
+    run = frappe.get_doc(RUN_DOCTYPE, run_name)
     run.check_permission("write")
     if not run.preview_rows:
-        frappe.throw(_("Bitte zuerst eine Vorschau erzeugen."))
+        frappe.throw(_("Bitte zuerst eine Vorschau anzeigen."))
 
     created = skipped = errors = 0
     for row in run.preview_rows:
@@ -394,7 +424,7 @@ def create_subscriptions_from_preview(run_name: str) -> dict:
             subscription = create_subscription_for_preview_row(run, row)
             row.created_subscription = subscription.name
             row.action = ACTION_CREATED
-            row.message = _("Subscription erstellt.")
+            row.message = _("Abo erstellt.")
             created += 1
         except Exception as exc:
             row.action = ACTION_ERROR
@@ -417,7 +447,7 @@ def create_subscription_for_preview_row(run, row):
     subscription.end_date = row.period_to
     subscription.generate_new_invoices_past_due_date = run.generate_new_invoices_past_due_date
     subscription.submit_invoice = 1
-    subscription.generate_invoice_at = run.generate_invoice_at
+    subscription.generate_invoice_at = get_erpnext_generate_invoice_at(run.generate_invoice_at)
     subscription.number_of_days = run.number_of_days
     subscription.days_until_due = run.days_until_due
     for plan_line in load_plan_lines(row):

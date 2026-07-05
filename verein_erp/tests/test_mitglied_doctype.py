@@ -40,11 +40,13 @@ class TestMitgliedDoctype(IntegrationTestCase):
         picture_url = meta.get_field("picture_url")
         self.assertIsNotNone(picture_url)
         self.assertEqual(picture_url.fieldtype, "Data")
+        self.assertEqual(picture_url.label, "Bild-URL")
         self.assertEqual(picture_url.options, "URL")
 
         fremd_id = meta.get_field("fremd_id")
         self.assertIsNotNone(fremd_id)
         self.assertEqual(fremd_id.fieldtype, "Data")
+        self.assertEqual(fremd_id.label, "Externe ID")
         self.assertEqual(fremd_id.unique, 1)
         self.assertEqual(fremd_id.search_index, 1)
 
@@ -62,6 +64,7 @@ class TestMitgliedDoctype(IntegrationTestCase):
         sepa_mandat = meta.get_field("sepa_mandat")
         self.assertIsNotNone(sepa_mandat)
         self.assertEqual(sepa_mandat.fieldtype, "Link")
+        self.assertEqual(sepa_mandat.label, "SEPA-Mandat")
         self.assertEqual(sepa_mandat.options, "SEPA Mandat")
         self.assertEqual(sepa_mandat.read_only, 1)
 
@@ -69,6 +72,10 @@ class TestMitgliedDoctype(IntegrationTestCase):
         self.assertIsNotNone(beitragszahler)
         self.assertEqual(beitragszahler.fieldtype, "Link")
         self.assertEqual(beitragszahler.options, "Mitglied")
+
+        customer = meta.get_field("customer")
+        self.assertIsNotNone(customer)
+        self.assertEqual(customer.label, "Kunde")
 
         self.assertIsNone(meta.get_field("mandat_id"))
         self.assertIsNone(meta.get_field("mandatsdatum"))

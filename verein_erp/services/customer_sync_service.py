@@ -428,7 +428,7 @@ def load_sync_state(customer) -> dict:
     try:
         state = json.loads(raw_state)
     except (TypeError, ValueError):
-        frappe.throw(_("Customer {0} hat einen ungueltigen Verein ERP Sync State.").format(frappe.bold(customer.name)))
+        frappe.throw(_("Kunde {0} hat einen ungueltigen Verein ERP Sync State.").format(frappe.bold(customer.name)))
 
     return state if isinstance(state, dict) else {}
 

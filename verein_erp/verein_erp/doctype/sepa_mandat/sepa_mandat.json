@@ -36,7 +36,7 @@
   {
    "fieldname": "mandat_section",
    "fieldtype": "Section Break",
-   "label": "Mandat"
+    "label": "SEPA-Mandat"
   },
   {
    "fieldname": "mandatsreferenz",
@@ -78,7 +78,7 @@
    "fieldname": "bezugs_doctype",
    "fieldtype": "Link",
    "in_standard_filter": 1,
-   "label": "Bezugs-DocType",
+    "label": "Referenztyp",
    "options": "DocType",
    "reqd": 1
   },
@@ -98,7 +98,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Customer",
+    "label": "Kunde",
    "options": "Customer",
    "read_only": 1,
    "search_index": 1
@@ -140,7 +140,7 @@
   {
    "fieldname": "kontoinhaber_adresse",
    "fieldtype": "Small Text",
-   "label": "Kontoinhaber Adresse"
+    "label": "Adresse des Kontoinhabers"
   },
   {
    "fieldname": "bank_column_break",
@@ -169,17 +169,17 @@
   {
    "fieldname": "bank_name_freitext",
    "fieldtype": "Data",
-   "label": "Bankname Freitext"
+    "label": "Bankname manuell"
   },
   {
    "fieldname": "erpnext_section",
    "fieldtype": "Section Break",
-   "label": "ERPNext Verknuepfung"
+    "label": "ERPNext-Verknuepfung"
   },
   {
    "fieldname": "bank_account",
    "fieldtype": "Link",
-   "label": "Bank Account",
+    "label": "Bankkonto",
    "no_copy": 1,
    "options": "Bank Account",
    "read_only": 1
