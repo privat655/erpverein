@@ -16,6 +16,7 @@ from verein_erp.services.subscription_generation_service import (
     estimate_invoice_count,
     get_erpnext_generate_invoice_at,
     suggest_subscription_plans,
+    create_subscription_for_preview_row,
 )
 
 
@@ -139,6 +140,23 @@ class TestSubscriptionGenerationService(IntegrationTestCase):
             enqueue.call_args.args[0],
             "verein_erp.services.subscription_generation_service.create_subscriptions_from_preview",
         )
+
+    def test_subscription_creation_respects_submit_invoice_setting(self):
+        plan_250 = make_subscription_plan(250)
+        plan_350 = make_subscription_plan(350)
+        customer = make_customer("Subscription Draft Invoice")
+        payer = make_mitglied(customer=customer.name, abrechnungsart="Rechnung", jahresbeitrag=350)
+        run = make_run(payer.name, plan_250.name, plan_350.name)
+        run.submit_invoice = 0
+        run.save(ignore_permissions=True)
+        build_subscription_preview(run.name)
+        run.reload()
+        row = next(row for row in run.preview_rows if str(row.period_from) == "2023-01-01")
+
+        with patch("frappe.model.document.Document.insert", return_value=None):
+            subscription = create_subscription_for_preview_row(run, row)
+
+        self.assertEqual(subscription.submit_invoice, 0)
 
 
 def make_run(mitglied: str, plan_250: str, plan_350: str):

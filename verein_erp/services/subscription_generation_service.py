@@ -61,7 +61,7 @@ def set_subscription_run_defaults(doc) -> None:
     doc.scope = doc.scope or SCOPE_ALL
     doc.company = doc.company or get_default_company()
     doc.cost_center = doc.cost_center or get_default_cost_center(doc.company)
-    doc.submit_invoice = 1
+    doc.submit_invoice = 1 if doc.submit_invoice is None else doc.submit_invoice
     doc.generate_new_invoices_past_due_date = 1 if doc.generate_new_invoices_past_due_date is None else doc.generate_new_invoices_past_due_date
     doc.generate_invoice_at = doc.generate_invoice_at or DEFAULT_GENERATE_INVOICE_AT
     doc.days_until_due = cint(doc.days_until_due)
@@ -451,7 +451,7 @@ def create_subscription_for_preview_row(run, row):
     subscription.start_date = row.period_from
     subscription.end_date = row.period_to
     subscription.generate_new_invoices_past_due_date = run.generate_new_invoices_past_due_date
-    subscription.submit_invoice = 1
+    subscription.submit_invoice = run.submit_invoice
     subscription.generate_invoice_at = get_erpnext_generate_invoice_at(run.generate_invoice_at)
     subscription.number_of_days = run.number_of_days
     subscription.days_until_due = run.days_until_due

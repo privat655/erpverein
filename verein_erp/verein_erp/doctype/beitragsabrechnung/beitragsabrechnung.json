@@ -63,7 +63,7 @@
   {"fieldname": "company", "fieldtype": "Link", "in_list_view": 1, "label": "Unternehmen", "options": "Company", "reqd": 1},
   {"fieldname": "cost_center", "fieldtype": "Link", "label": "Kostenstelle", "options": "Cost Center", "reqd": 1},
   {"fieldname": "settings_column_break", "fieldtype": "Column Break"},
-   {"default": "1", "fieldname": "submit_invoice", "fieldtype": "Check", "label": "Rechnungen automatisch buchen", "read_only": 1},
+    {"default": "1", "fieldname": "submit_invoice", "fieldtype": "Check", "label": "Rechnungen automatisch buchen"},
    {"default": "1", "fieldname": "generate_new_invoices_past_due_date", "fieldtype": "Check", "label": "Nachtraegliche Rechnungen erstellen"},
   {
     "default": "Periodenbeginn",
