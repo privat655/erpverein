@@ -2,6 +2,7 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 
 CUSTOMER_MITGLIED_FIELDNAME = "mitglied"
+CUSTOMER_MIETER_FIELDNAME = "mieter"
 CUSTOMER_SYNC_STATE_FIELDNAME = "verein_erp_sync_state"
 BANK_ACCOUNT_MANAGED_FIELDNAME = "verein_erp_managed"
 BANK_ACCOUNT_SYNC_STATE_FIELDNAME = "verein_erp_sync_state"
@@ -31,7 +32,19 @@ def get_custom_fields() -> dict:
                 "hidden": 1,
                 "no_copy": 1,
                 "read_only": 1,
-            }
+            },
+            {
+                "fieldname": CUSTOMER_MIETER_FIELDNAME,
+                "label": "Mieter",
+                "fieldtype": "Link",
+                "options": "Mieter",
+                "insert_after": CUSTOMER_SYNC_STATE_FIELDNAME,
+                "description": "1:1 verknuepfter Mieter-Datensatz aus der Verein ERP App.",
+                "no_copy": 1,
+                "in_standard_filter": 1,
+                "search_index": 1,
+                "unique": 1,
+            },
         ],
         "Bank Account": [
             {
@@ -64,7 +77,7 @@ def sync_custom_fields() -> None:
 def remove_custom_fields() -> None:
     delete_custom_fields(
         {
-            "Customer": [CUSTOMER_MITGLIED_FIELDNAME, CUSTOMER_SYNC_STATE_FIELDNAME],
+            "Customer": [CUSTOMER_MITGLIED_FIELDNAME, CUSTOMER_SYNC_STATE_FIELDNAME, CUSTOMER_MIETER_FIELDNAME],
             "Bank Account": [BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME],
         }
     )

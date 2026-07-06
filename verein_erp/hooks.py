@@ -13,8 +13,17 @@ before_tests = "verein_erp.tests.before_tests.before_tests"
 
 doc_events = {
     "Customer": {
-        "validate": "verein_erp.services.mitglied_service.validate_customer_membership_link",
-        "on_update": "verein_erp.services.mitglied_service.sync_customer_to_mitglied",
-        "on_trash": "verein_erp.services.mitglied_service.clear_customer_link_from_mitglied",
+        "validate": [
+            "verein_erp.services.mitglied_service.validate_customer_membership_link",
+            "verein_erp.services.mieter_service.validate_customer_rental_link",
+        ],
+        "on_update": [
+            "verein_erp.services.mitglied_service.sync_customer_to_mitglied",
+            "verein_erp.services.mieter_service.sync_customer_to_mieter",
+        ],
+        "on_trash": [
+            "verein_erp.services.mitglied_service.clear_customer_link_from_mitglied",
+            "verein_erp.services.mieter_service.clear_customer_link_from_mieter",
+        ],
     }
 }

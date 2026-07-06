@@ -24,7 +24,7 @@ ALLOWED_STATUSES = {
 }
 ALLOWED_CATEGORIES = {MANDATE_CATEGORY_MEMBERSHIP, MANDATE_CATEGORY_RENT}
 ALLOWED_MODES = {MANDATE_MODE_YEARLY, MANDATE_MODE_HALF_YEARLY}
-SUPPORTED_REFERENCE_DOCTYPES = {MANDATE_CATEGORY_MEMBERSHIP: "Mitglied"}
+SUPPORTED_REFERENCE_DOCTYPES = {MANDATE_CATEGORY_MEMBERSHIP: "Mitglied", MANDATE_CATEGORY_RENT: "Mieter"}
 
 
 def normalize_text(value: object) -> str | None:
@@ -79,6 +79,8 @@ def normalize_sepa_mandat(doc) -> None:
 
     if doc.mandatskategorie == MANDATE_CATEGORY_MEMBERSHIP and not doc.bezugs_doctype:
         doc.bezugs_doctype = "Mitglied"
+    if doc.mandatskategorie == MANDATE_CATEGORY_RENT and not doc.bezugs_doctype:
+        doc.bezugs_doctype = "Mieter"
 
 
 def validate_category_and_reference(doc) -> None:
@@ -122,6 +124,8 @@ def set_customer_from_reference(doc) -> None:
 def get_customer_from_reference(doctype: str | None, name: str | None) -> str | None:
     if doctype == "Mitglied" and name:
         return frappe.db.get_value("Mitglied", name, "customer")
+    if doctype == "Mieter" and name:
+        return frappe.db.get_value("Mieter", name, "customer")
     return None
 
 
@@ -196,24 +200,24 @@ def clear_previous_reference_link(doc) -> None:
 
 
 def sync_mandat_link_to_reference(doc) -> None:
-    if doc.bezugs_doctype != "Mitglied" or not doc.bezugs_name or not frappe.db.exists("Mitglied", doc.bezugs_name):
+    if doc.bezugs_doctype not in {"Mitglied", "Mieter"} or not doc.bezugs_name or not frappe.db.exists(doc.bezugs_doctype, doc.bezugs_name):
         return
 
     if doc.status == MANDATE_STATUS_ACTIVE:
         assert_reference_write_permission(doc.bezugs_doctype, doc.bezugs_name)
-        set_value_if_changed("Mitglied", doc.bezugs_name, "sepa_mandat", doc.name)
+        set_value_if_changed(doc.bezugs_doctype, doc.bezugs_name, "sepa_mandat", doc.name)
     else:
         clear_reference_link(doc.bezugs_doctype, doc.bezugs_name, doc.name)
 
 
 def clear_reference_link(doctype: str | None, name: str | None, mandat: str | None) -> None:
-    if doctype != "Mitglied" or not name or not mandat or not frappe.db.exists("Mitglied", name):
+    if doctype not in {"Mitglied", "Mieter"} or not name or not mandat or not frappe.db.exists(doctype, name):
         return
 
-    current_mandat = frappe.db.get_value("Mitglied", name, "sepa_mandat")
+    current_mandat = frappe.db.get_value(doctype, name, "sepa_mandat")
     if current_mandat == mandat:
         assert_reference_write_permission(doctype, name)
-        set_value_if_changed("Mitglied", name, "sepa_mandat", None)
+        set_value_if_changed(doctype, name, "sepa_mandat", None)
 
 
 def sync_bank_account_from_mandat(doc) -> None:
@@ -368,10 +372,10 @@ def set_value_if_changed(doctype: str, name: str, fieldname: str, value: str | N
 
 
 def assert_reference_write_permission(doctype: str | None, name: str | None) -> None:
-    if doctype != "Mitglied" or not name or skip_cross_link_permission_check():
+    if doctype not in {"Mitglied", "Mieter"} or not name or skip_cross_link_permission_check():
         return
 
-    frappe.get_doc("Mitglied", name).check_permission("write")
+    frappe.get_doc(doctype, name).check_permission("write")
 
 
 def skip_cross_link_permission_check() -> bool:

@@ -4,6 +4,7 @@ from frappe.tests import IntegrationTestCase
 from verein_erp.custom_fields import (
     BANK_ACCOUNT_MANAGED_FIELDNAME,
     BANK_ACCOUNT_SYNC_STATE_FIELDNAME,
+    CUSTOMER_MIETER_FIELDNAME,
     CUSTOMER_MITGLIED_FIELDNAME,
     CUSTOMER_SYNC_STATE_FIELDNAME,
     get_custom_fields,
@@ -30,6 +31,15 @@ class TestCustomFields(IntegrationTestCase):
         self.assertEqual(field["hidden"], 1)
         self.assertEqual(field["read_only"], 1)
 
+    def test_customer_mieter_field_definition(self):
+        customer_fields = get_custom_fields()["Customer"]
+        field = next(field for field in customer_fields if field["fieldname"] == CUSTOMER_MIETER_FIELDNAME)
+
+        self.assertEqual(field["fieldtype"], "Link")
+        self.assertEqual(field["options"], "Mieter")
+        self.assertEqual(field["insert_after"], CUSTOMER_SYNC_STATE_FIELDNAME)
+        self.assertEqual(field["unique"], 1)
+
     def test_sync_custom_fields_creates_customer_mitglied_field(self):
         sync_custom_fields()
         meta = frappe.get_meta("Customer", cached=False)
@@ -42,6 +52,11 @@ class TestCustomFields(IntegrationTestCase):
         sync_state_field = meta.get_field(CUSTOMER_SYNC_STATE_FIELDNAME)
         self.assertIsNotNone(sync_state_field)
         self.assertEqual(sync_state_field.fieldtype, "Long Text")
+
+        mieter_field = meta.get_field(CUSTOMER_MIETER_FIELDNAME)
+        self.assertIsNotNone(mieter_field)
+        self.assertEqual(mieter_field.fieldtype, "Link")
+        self.assertEqual(mieter_field.options, "Mieter")
 
     def test_bank_account_managed_field_definition(self):
         bank_account_fields = get_custom_fields()["Bank Account"]

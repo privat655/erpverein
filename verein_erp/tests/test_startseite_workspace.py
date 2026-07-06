@@ -4,7 +4,7 @@ from pathlib import Path
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from verein_erp.patches.v0_1 import p0007_sync_startseite_workspace
+from verein_erp.patches.v0_1 import p0007_sync_startseite_workspace, p0011_sync_mieter_workspace
 
 
 class TestStartseiteWorkspace(IntegrationTestCase):
@@ -25,8 +25,10 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(workspace["module"], "verein_erp")
         links = {link["link_to"]: link["label"] for link in workspace["links"] if link.get("link_to")}
         self.assertEqual(links["Mitglied"], "Mitglieder")
+        self.assertEqual(links["Mieter"], "Mieter")
         self.assertEqual(links["SEPA Mandat"], "SEPA-Mandate")
         self.assertEqual(links["Beitragsabrechnung"], "Beitragsabrechnungen")
+        self.assertEqual(links["Mietabrechnung"], "Mietabrechnungen")
 
     def test_workspace_sidebar_json_defines_startseite_header(self):
         sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "startseite.json"
@@ -40,8 +42,10 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(sidebar["items"][0]["link_type"], "Workspace")
         links = {item["link_to"]: item["label"] for item in sidebar["items"]}
         self.assertEqual(links["Mitglied"], "Mitglieder")
+        self.assertEqual(links["Mieter"], "Mieter")
         self.assertEqual(links["SEPA Mandat"], "SEPA-Mandate")
         self.assertEqual(links["Beitragsabrechnung"], "Beitragsabrechnungen")
+        self.assertEqual(links["Mietabrechnung"], "Mietabrechnungen")
 
     def test_patch_syncs_startseite_and_removes_legacy_workspace(self):
         frappe.delete_doc_if_exists("Workspace", "verein_erp", force=True)
@@ -68,3 +72,12 @@ class TestStartseiteWorkspace(IntegrationTestCase):
         self.assertEqual(sidebar.title, "Startseite")
         self.assertEqual(sidebar.app, "verein_erp")
         self.assertFalse(frappe.db.exists("Workspace", "verein_erp"))
+
+    def test_mieter_workspace_patch_can_rerun(self):
+        p0011_sync_mieter_workspace.execute()
+        p0011_sync_mieter_workspace.execute()
+
+        workspace = frappe.get_doc("Workspace", "Startseite")
+        links = {link.link_to: link.label for link in workspace.links if link.link_to}
+        self.assertEqual(links["Mieter"], "Mieter")
+        self.assertEqual(links["Mietabrechnung"], "Mietabrechnungen")
