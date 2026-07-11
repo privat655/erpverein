@@ -1,4 +1,4 @@
-# Verein ERP
+# ERPverein
 
 ERPNext/Frappe custom app for Vereinsverwaltung
 
@@ -6,33 +6,55 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 - Frappe: `v16.25.0`
 - ERPNext: `v16.26.2`
-- App: `verein_erp` `0.2.8`
+- App: `erpverein` `0.1.0`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
+
+## Rename-Reset
+
+Die Umbenennung auf die Paket- und App-Kennung `erpverein` ist ein Identitaets-Reset. Sie wird nur als Neuinstallation auf einer sauberen Site unterstuetzt; alte Development-Sites aus der Zeit vor der Umbenennung werden nicht migriert und sind ausdruecklich nicht unterstuetzt.
 
 ## Erste Feature-Scheibe
 
 `Mitglied` ist ein App-eigener DocType fuer Mitglied-Stammdaten. Er ist nicht buchbar, nicht submittable und erzeugt keine Buchungen.
 
-Die App ergaenzt `Customer.mitglied` als codeverwaltetes Custom Field. `Mitglied.customer` und `Customer.mitglied` bilden eine serverseitig validierte 1:1-Beziehung und werden durch App-Code synchronisiert.
+Die App ergaenzt `Customer.erpverein_mitglied` als codeverwaltetes Custom Field. `Mitglied.customer` und `Customer.erpverein_mitglied` bilden eine serverseitig validierte 1:1-Beziehung und werden durch App-Code synchronisiert.
 
 Kontodaten werden bewusst nicht in `Mitglied` dupliziert. Fuer Zahlungskonto-Daten werden die ERPNext-Mechanismen rund um Customer/Bank Account genutzt; `Mitglied` speichert nur die Lastschriftmandats-Metadaten.
 
 ## Lokale Installation
 
 ```bash
-bench --site <site> install-app verein_erp
+bench --site <site> install-app erpverein
 bench --site <site> migrate
-bench --site <site> run-tests --app verein_erp
+bench --site <site> set-config allow_tests true
+bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --lightmode
+bench --site <site> run-tests --app erpverein
 ```
 
 ## Normales Update
 
-Fuer normale Updates nicht deinstallieren und neu installieren.
+Dieser Ablauf gilt nur fuer Sites, die bereits sauber mit `erpverein` installiert wurden. Fuer normale Updates nicht deinstallieren und neu installieren.
 
 ```bash
 bench --site <site> backup --with-files
 bench --site <site> migrate
-bench --site <site> run-tests --app verein_erp
+bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --lightmode
+bench --site <site> run-tests --app erpverein
 ```
 
 Bei produktiven Image-Deployments vor `bench migrate` ein Backup mit Dateien erstellen und `site_config.json` inklusive `encryption_key` sichern.
+
+## Releases und Images
+
+Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand zum Beispiel `erpverein-v16.26.2-0.1.0`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
+
+Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Vor dem Push erstellt er mit den gepinnten Frappe-, ERPNext-, `frappe_docker`-, MariaDB- und Redis-Komponenten eine saubere Site, installiert zuerst ERPNext und dann `erpverein` und fuehrt diese Befehle im gebauten Image aus:
+
+```bash
+bench --site ci.localhost install-app erpverein
+bench --site ci.localhost migrate
+bench --site ci.localhost run-tests --module erpnext.tests.bootstrap_test_data --lightmode
+bench --site ci.localhost run-tests --app erpverein
+```
+
+Nur ein erfolgreich verifiziertes Image wird nach GHCR gepusht. Manuelle Workflow-Laeufe akzeptieren einen App-Git-Ref und einen optionalen Image-Tag; der Image-Tag wird auf Docker-kompatible Zeichen normalisiert.

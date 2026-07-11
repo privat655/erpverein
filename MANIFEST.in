@@ -1,2 +1,3 @@
 include README.md
-recursive-include verein_erp *.json *.js *.txt *.py
+include LICENSE
+recursive-include erpverein *.json *.js *.txt *.py

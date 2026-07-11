@@ -3,10 +3,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "verein_erp"
-version = "0.2.9"
-description = "ERPNext custom app for simple Vereinsverwaltung"
-requires-python = ">=3.10"
+name = "erpverein"
+version = "0.1.0"
+description = "ERPverein custom app for simple Vereinsverwaltung on ERPNext"
+requires-python = ">=3.14,<3.15"
+readme = "README.md"
 license = { text = "MIT" }
 
 [tool.bench.frappe-dependencies]
@@ -15,7 +16,7 @@ erpnext = ">=16.0.0,<17.0.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["verein_erp*"]
+include = ["erpverein*"]
 
 [tool.setuptools.package-data]
-verein_erp = ["**/*.json", "**/*.js", "*.txt"]
+erpverein = ["**/*.json", "**/*.js", "*.txt"]

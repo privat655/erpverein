@@ -1,0 +1,266 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 0,
+ "autoname": "MIT-.YYYY.-.#####",
+ "creation": "2026-07-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "stammdaten_section",
+  "mitglied_id",
+  "fremd_id",
+  "mitglied_name",
+  "anrede",
+  "vorname",
+  "nachname",
+  "address_column_break",
+  "strasse",
+  "plz",
+  "ort",
+  "land",
+  "kontakt_section",
+  "email",
+  "telefon",
+  "picture_url",
+  "mitgliedschaft_section",
+  "geburtsdatum",
+  "eintrittsdatum",
+  "austrittsdatum",
+  "abrechnungsart",
+  "jahresbeitrag",
+  "abrechnung_section",
+  "sepa_mandat",
+  "beitragszahler",
+  "erpnext_section",
+  "customer"
+ ],
+ "fields": [
+  {
+   "fieldname": "stammdaten_section",
+   "fieldtype": "Section Break",
+   "label": "Stammdaten"
+  },
+  {
+   "fieldname": "mitglied_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Mitglied ID",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "description": "Externe ID aus dem CRM-System fuer Import und Synchronisation.",
+   "fieldname": "fremd_id",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+    "label": "Externe ID",
+   "no_copy": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "mitglied_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Mitgliedsname",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "anrede",
+   "fieldtype": "Data",
+   "label": "Anrede"
+  },
+  {
+   "fieldname": "vorname",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vorname",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "nachname",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Nachname",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "address_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "strasse",
+   "fieldtype": "Data",
+   "label": "Strasse"
+  },
+  {
+   "fieldname": "plz",
+   "fieldtype": "Data",
+   "label": "PLZ"
+  },
+  {
+   "fieldname": "ort",
+   "fieldtype": "Data",
+   "label": "Ort"
+  },
+  {
+   "fieldname": "land",
+   "fieldtype": "Link",
+   "label": "Land",
+   "options": "Country"
+  },
+  {
+   "fieldname": "kontakt_section",
+   "fieldtype": "Section Break",
+   "label": "Kontakt"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+    "label": "E-Mail",
+   "options": "Email"
+  },
+  {
+   "fieldname": "telefon",
+   "fieldtype": "Data",
+   "label": "Telefon",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "picture_url",
+   "fieldtype": "Data",
+    "label": "Bild-URL",
+   "options": "URL"
+  },
+  {
+   "fieldname": "mitgliedschaft_section",
+   "fieldtype": "Section Break",
+   "label": "Mitgliedschaft"
+  },
+  {
+   "fieldname": "geburtsdatum",
+   "fieldtype": "Date",
+   "label": "Geburtsdatum"
+  },
+  {
+   "fieldname": "eintrittsdatum",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Eintrittsdatum",
+   "reqd": 1
+  },
+  {
+   "fieldname": "austrittsdatum",
+   "fieldtype": "Date",
+   "label": "Austrittsdatum"
+  },
+  {
+   "default": "Rechnung",
+   "fieldname": "abrechnungsart",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Abrechnungsart",
+   "options": "Rechnung\nLastschrift\nBeitrag wird uebernommen\nBeitragsfrei",
+   "reqd": 1
+  },
+  {
+   "default": "350",
+   "fieldname": "jahresbeitrag",
+   "fieldtype": "Currency",
+   "label": "Jahresbeitrag",
+   "mandatory_depends_on": "eval:doc.abrechnungsart != 'Beitragsfrei'"
+  },
+  {
+   "fieldname": "abrechnung_section",
+   "fieldtype": "Section Break",
+   "label": "Abrechnung"
+  },
+  {
+   "depends_on": "eval:doc.abrechnungsart == 'Lastschrift'",
+    "description": "Aktives SEPA-Mandat fuer Lastschrift. Wird aus dem SEPA-Mandat synchronisiert.",
+   "fieldname": "sepa_mandat",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+    "label": "SEPA-Mandat",
+   "mandatory_depends_on": "eval:doc.abrechnungsart == 'Lastschrift'",
+   "no_copy": 1,
+   "options": "SEPA Mandat",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.abrechnungsart == 'Beitrag wird uebernommen'",
+   "description": "Mitglied, das den Beitrag fuer dieses Mitglied uebernimmt.",
+   "fieldname": "beitragszahler",
+   "fieldtype": "Link",
+   "label": "Beitrag uebernommen von",
+   "mandatory_depends_on": "eval:doc.abrechnungsart == 'Beitrag wird uebernommen'",
+   "no_copy": 1,
+   "options": "Mitglied",
+   "search_index": 1
+  },
+  {
+   "fieldname": "erpnext_section",
+   "fieldtype": "Section Break",
+    "label": "ERPNext-Verknuepfung"
+  },
+  {
+    "description": "1:1 verknuepfter ERPNext-Kunde. Kontodaten werden nicht hier gespeichert.",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+    "label": "Kunde",
+   "no_copy": 1,
+   "options": "Customer",
+   "search_index": 1,
+   "unique": 1
+  }
+ ],
+ "icon": "fa fa-users",
+ "idx": 1,
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-07-04 01:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "Mitglied",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "search_fields": "mitglied_id,fremd_id,mitglied_name,vorname,nachname,email,customer,sepa_mandat,beitragszahler",
+ "show_name_in_global_search": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "mitglied_name",
+ "track_changes": 1
+}

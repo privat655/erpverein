@@ -1,0 +1,101 @@
+{
+ "app": "erpverein",
+ "creation": "2026-07-04 13:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "home",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Start",
+   "link_to": "Startseite",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+     "label": "Mitglieder",
+   "link_to": "Mitglied",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+    "label": "Mieter",
+   "link_to": "Mieter",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+    "label": "SEPA-Mandate",
+   "link_to": "SEPA Mandat",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+     "label": "Beitragsabrechnungen",
+     "link_to": "Beitragsabrechnung",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+    "label": "Mietabrechnungen",
+    "link_to": "Mietabrechnung",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+   },
+   {
+    "child": 0,
+    "collapsible": 1,
+    "icon": "warning-sign",
+    "indent": 0,
+    "keep_closed": 0,
+    "label": "Ausgetretene Mitglieder mit aktiven Abonnements",
+    "link_to": "Ausgetretene Mitglieder mit aktiven Abonnements",
+    "link_type": "Report",
+    "show_arrow": 0,
+    "type": "Link"
+   }
+ ],
+ "modified": "2026-07-04 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "Startseite",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Startseite"
+}
