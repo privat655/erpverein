@@ -16,7 +16,9 @@ def sync_salutations() -> None:
 
 
 def sync_customer_masters() -> None:
-    if not frappe.db.exists("Customer Group", "Individual"):
+    if frappe.db.exists("Customer Group", "All Customer Groups") and not frappe.db.exists(
+        "Customer Group", "Individual"
+    ):
         frappe.get_doc(
             {
                 "doctype": "Customer Group",
@@ -25,7 +27,7 @@ def sync_customer_masters() -> None:
                 "is_group": 0,
             }
         ).insert(ignore_permissions=True)
-    if not frappe.db.exists("Territory", "Germany"):
+    if frappe.db.exists("Territory", "All Territories") and not frappe.db.exists("Territory", "Germany"):
         frappe.get_doc(
             {
                 "doctype": "Territory",
