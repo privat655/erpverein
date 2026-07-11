@@ -6,7 +6,7 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 - Frappe: `v16.25.0`
 - ERPNext: `v16.26.2`
-- App: `erpverein` `0.1.0`
+- App: `erpverein` `0.1.1`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
 
 ## Rename-Reset
@@ -46,7 +46,7 @@ Bei produktiven Image-Deployments vor `bench migrate` ein Backup mit Dateien ers
 
 ## Releases und Images
 
-Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand zum Beispiel `erpverein-v16.26.2-0.1.0`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
+Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand zum Beispiel `erpverein-v16.26.2-0.1.1`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
 
 Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Vor dem Push erstellt er mit den gepinnten Frappe-, ERPNext-, `frappe_docker`-, MariaDB- und Redis-Komponenten eine saubere Site, installiert zuerst ERPNext und dann `erpverein` und fuehrt diese Befehle im gebauten Image aus:
 
