@@ -176,8 +176,8 @@ class TestRentalSubscriptionGenerationService(IntegrationTestCase):
     def test_same_generation_key_and_payload_is_idempotent(self):
         plan = make_subscription_plan(820)
         customer = make_customer("Rental Idempotent")
-        mieter = make_mieter(customer=customer.name, mietbeginn="2027-01-01")
-        run = make_run(mieter.name, plan.name, "2027-01-01", "2027-12-31")
+        mieter = make_mieter(customer=customer.name, mietbeginn="2099-01-01")
+        run = make_run(mieter.name, plan.name, "2099-01-01", "2099-12-31")
         run.submit_invoice = 0
         run.generate_new_invoices_past_due_date = 0
         run.save(ignore_permissions=True)

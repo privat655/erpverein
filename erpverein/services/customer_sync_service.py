@@ -313,6 +313,10 @@ def remove_owned_record(customer, source_state: dict, state_key: str, doctype: s
     primary_field = "customer_primary_address" if doctype == "Address" else "customer_primary_contact"
     if customer.meta.has_field(primary_field) and customer.get(primary_field) == record.name:
         customer.set(primary_field, None)
+        if doctype == "Contact":
+            for fieldname in ("email_id", "mobile_no", "first_name", "last_name"):
+                if customer.meta.has_field(fieldname):
+                    customer.set(fieldname, None)
     source_state.pop(state_key, None)
     source_state.setdefault("_pending_deletes", []).append((doctype, record.name))
     return True
