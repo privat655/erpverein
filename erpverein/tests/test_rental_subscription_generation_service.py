@@ -191,6 +191,7 @@ class TestRentalSubscriptionGenerationService(IntegrationTestCase):
         self.assertIsNone(existing)
         self.assertIsNone(duplicate)
         self.assertEqual(winner, created.name)
+        self.assertFalse(getattr(created.flags, "erpverein_generation", False))
 
         created.reload()
         created.save(ignore_permissions=True)

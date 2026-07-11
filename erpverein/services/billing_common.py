@@ -239,7 +239,10 @@ def create_managed_subscription(
         for source in json.loads(payload).get("sources", []):
             subscription.append(SUBSCRIPTION_SOURCES_FIELDNAME, source)
         subscription.flags.erpverein_generation = True
-        subscription.insert()
+        try:
+            subscription.insert()
+        finally:
+            subscription.flags.pop("erpverein_generation", None)
         frappe.db.release_savepoint(savepoint)
         return subscription, None, _("Abo erstellt.")
     except Exception as exc:
