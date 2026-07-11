@@ -1,6 +1,7 @@
 import json
 
 import frappe
+from frappe.utils import get_datetime
 from frappe.tests import IntegrationTestCase
 
 from erpverein.custom_fields import BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME, sync_custom_fields
@@ -140,7 +141,7 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         self.assertEqual(mandate.bank_account, account.name)
         self.assertEqual(account.disabled, before["disabled"])
         self.assertEqual(account.get(BANK_ACCOUNT_MANAGED_FIELDNAME), 0)
-        self.assertEqual(account.modified, before["modified"])
+        self.assertEqual(get_datetime(account.modified), get_datetime(before["modified"]))
         self.assertFalse(account.get(BANK_ACCOUNT_SYNC_STATE_FIELDNAME))
 
     def test_incompatible_unmanaged_bank_account_is_not_adopted(self):
@@ -190,7 +191,7 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         self.assertFalse(mitglied.sepa_mandat)
         self.assertEqual(account.disabled, 0)
         self.assertEqual(account.get(BANK_ACCOUNT_MANAGED_FIELDNAME), 0)
-        self.assertEqual(account.modified, before_modified)
+        self.assertEqual(get_datetime(account.modified), get_datetime(before_modified))
 
     def test_delete_clears_backlink_and_disables_unused_managed_account(self):
         customer = make_customer("SEPA Delete Managed")

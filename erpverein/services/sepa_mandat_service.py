@@ -3,7 +3,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cstr
+from frappe.utils import cstr, getdate
 
 from erpverein.custom_fields import BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME
 
@@ -112,9 +112,20 @@ def validate_mandate_state_transition(doc) -> None:
     ):
         frappe.throw(_("Der Status Ersetzt darf nur durch die Ersatzmandat-Funktion gesetzt werden."))
     if previous.status == MANDATE_STATUS_ACTIVE:
-        changed = [fieldname for fieldname in MANDATE_IDENTITY_FIELDS if previous.get(fieldname) != doc.get(fieldname)]
+        changed = [
+            fieldname
+            for fieldname in MANDATE_IDENTITY_FIELDS
+            if _mandate_identity_value(fieldname, previous.get(fieldname))
+            != _mandate_identity_value(fieldname, doc.get(fieldname))
+        ]
         if changed:
             frappe.throw(_("Identitaets- und Bankdaten eines aktiven SEPA-Mandats sind unveraenderlich. Bitte ein Ersatzmandat anlegen."))
+
+
+def _mandate_identity_value(fieldname: str, value):
+    if fieldname == "mandatsdatum" and value:
+        return getdate(value)
+    return value
 
 
 def normalize_sepa_mandat(doc) -> None:
@@ -544,7 +555,7 @@ def activate_replacement_mandate(mandate_name: str) -> dict:
     active_name = get_other_active_mandate(replacement)
     if not active_name:
         frappe.throw(_("Es existiert kein aktives SEPA-Mandat, das ersetzt werden kann."))
-    if not frappe.has_permission("SEPA Mandat", "write", doc=active_name, print_logs=False):
+    if not frappe.has_permission("SEPA Mandat", "write", doc=active_name):
         frappe.throw(_("Das bestehende aktive SEPA-Mandat darf nicht ersetzt werden."), frappe.PermissionError)
 
     replacement.flags.erpverein_replacement_for = active_name

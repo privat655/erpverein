@@ -21,6 +21,9 @@ class TestBillingCommon(UnitTestCase):
     def test_canonical_json_sorts_nested_keys(self):
         self.assertEqual(canonical_json({"b": 2, "a": {"d": 4, "c": 3}}), '{"a":{"c":3,"d":4},"b":2}')
 
+    def test_canonical_json_handles_frappe_dict_without_as_dict_method(self):
+        self.assertEqual(canonical_json(frappe._dict({"b": 2, "a": 1})), '{"a":1,"b":2}')
+
     def test_open_period_overlaps_future_finite_period(self):
         self.assertTrue(periods_overlap("2026-01-01", None, "2030-01-01", "2030-12-31"))
         self.assertFalse(periods_overlap("2026-01-01", "2026-12-31", "2027-01-01", None))

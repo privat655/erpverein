@@ -88,6 +88,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_updates_auto_managed_customer_name_and_image(self):
         mitglied = make_mitglied(email="old@example.org", telefon="111", picture_url="https://example.org/old.jpg", anrede="Frau")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
 
         mitglied.email = "new@example.org"
         mitglied.telefon = "222"
@@ -110,6 +111,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_updates_contact_address_when_auto_managed_address_is_created_later(self):
         mitglied = make_mitglied(email="person@example.org")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         contact = frappe.get_doc("Contact", customer.customer_primary_contact)
         self.assertFalse(contact.address)
@@ -127,6 +129,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_keeps_manually_changed_customer_field(self):
         mitglied = make_mitglied(picture_url="https://example.org/old.jpg")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         customer.image = "https://example.org/manual.jpg"
         customer.save(ignore_permissions=True)
@@ -141,6 +144,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_keeps_manually_changed_address(self):
         mitglied = make_mitglied(strasse="Musterstrasse 1", plz="10115", ort="Berlin")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         address = frappe.get_doc("Address", customer.customer_primary_address)
         address.address_line1 = "Manuelle Strasse 9"
@@ -156,6 +160,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_keeps_manually_changed_contact(self):
         mitglied = make_mitglied(email="old@example.org", telefon="111")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         contact = frappe.get_doc("Contact", customer.customer_primary_contact)
         contact.first_name = "Manual"
@@ -174,6 +179,7 @@ class TestCustomerSyncService(IntegrationTestCase):
     def test_running_sync_preserves_secondary_contact_rows(self):
         mitglied = make_mitglied(email="primary@example.org", telefon="111")
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         contact = frappe.get_doc("Contact", customer.customer_primary_contact)
         contact.add_email("secondary@example.org", is_primary=False)
@@ -199,6 +205,7 @@ class TestCustomerSyncService(IntegrationTestCase):
             ort="Berlin",
         )
         result = create_or_sync_customer_for_mitglied(mitglied.name)
+        mitglied.reload()
         customer = frappe.get_doc("Customer", result["customer"])
         address_name = customer.customer_primary_address
         contact_name = customer.customer_primary_contact

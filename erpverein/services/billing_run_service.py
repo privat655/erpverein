@@ -54,8 +54,9 @@ def prevent_frozen_run_deletion(doc) -> None:
 
 
 def _value(value):
-    if hasattr(value, "as_dict"):
-        value = value.as_dict(no_nulls=False)
+    as_dict = getattr(value, "as_dict", None)
+    if callable(as_dict):
+        value = as_dict(no_nulls=False)
         for field in ("name", "owner", "creation", "modified", "modified_by", "parent", "parentfield", "parenttype", "doctype", "idx", "docstatus"):
             value.pop(field, None)
     if isinstance(value, list):

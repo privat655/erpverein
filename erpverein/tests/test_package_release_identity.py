@@ -7,7 +7,7 @@ from frappe.tests import UnitTestCase
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 EXPECTED_APP = "erpverein"
-EXPECTED_VERSION = "0.1.2"
+EXPECTED_VERSION = "0.1.3"
 
 
 class TestPackageReleaseIdentity(UnitTestCase):
@@ -26,6 +26,7 @@ class TestPackageReleaseIdentity(UnitTestCase):
 		workflow = (ROOT / ".github" / "workflows" / "build-image.yml").read_text(encoding="utf-8")
 
 		self.assertIn('"erpverein-v*.*.*-*.*.*"', workflow)
+		self.assertNotIn("branches:", workflow)
 		self.assertIn("/${{ github.repository_owner }}/erpverein", workflow)
 		self.assertIn("TAG_APP_VERSION", workflow)
 		self.assertNotIn("\n  release:", workflow)

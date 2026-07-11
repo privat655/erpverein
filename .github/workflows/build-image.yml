@@ -15,8 +15,6 @@ on:
         description: "Optional image tag; unsupported characters are replaced with '-'"
         required: false
   push:
-    branches:
-      - main
     tags:
       - "erpverein-v*.*.*-*.*.*"
 
