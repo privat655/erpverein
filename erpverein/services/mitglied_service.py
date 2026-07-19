@@ -3,10 +3,7 @@ from frappe import _
 from frappe.utils import cstr, flt, getdate
 
 from erpverein.custom_fields import CUSTOMER_MITGLIED_FIELDNAME
-from erpverein.services.sepa_mandat_service import (
-    MANDATE_CATEGORY_MEMBERSHIP,
-    MANDATE_STATUS_ACTIVE,
-)
+from erpverein.services.sepa_mandat_service import MANDATE_STATUS_ACTIVE
 
 
 BILLING_TYPE_INVOICE = "Rechnung"
@@ -143,7 +140,6 @@ def get_active_sepa_mandat_for_mitglied(mitglied: str | None) -> str | None:
     return frappe.db.get_value(
         "SEPA Mandat",
         {
-            "mandatskategorie": MANDATE_CATEGORY_MEMBERSHIP,
             "bezugs_doctype": "Mitglied",
             "bezugs_name": mitglied,
             "status": MANDATE_STATUS_ACTIVE,
@@ -156,7 +152,7 @@ def validate_sepa_mandat_link(doc, sepa_mandat: str) -> None:
     mandate = frappe.db.get_value(
         "SEPA Mandat",
         sepa_mandat,
-        ["status", "mandatskategorie", "bezugs_doctype", "bezugs_name"],
+        ["status", "bezugs_doctype", "bezugs_name"],
         as_dict=True,
     )
     if not mandate:
@@ -164,7 +160,6 @@ def validate_sepa_mandat_link(doc, sepa_mandat: str) -> None:
 
     if (
         mandate.status != MANDATE_STATUS_ACTIVE
-        or mandate.mandatskategorie != MANDATE_CATEGORY_MEMBERSHIP
         or mandate.bezugs_doctype != "Mitglied"
         or mandate.bezugs_name != doc.name
     ):

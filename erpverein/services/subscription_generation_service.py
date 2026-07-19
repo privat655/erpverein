@@ -289,7 +289,7 @@ def make_preview_rows_for_payer(run, payer: MemberBillingInfo, members: list[Mem
     if not payer.customer:
         return [make_error_row(payer, _("Beitragszahler hat keinen Kunden."))]
     if payer.abrechnungsart == BILLING_TYPE_DIRECT_DEBIT and not get_active_source_mandate(
-        "Mitglied", payer.name, "Mitgliedsbeitrag", payer.sepa_mandat
+        "Mitglied", payer.name, payer.sepa_mandat
     ):
         return [make_error_row(payer, _("Beitragszahler hat kein gueltiges aktives SEPA-Mandat."))]
 
@@ -515,7 +515,7 @@ def create_subscriptions_from_preview(run_name: str) -> dict:
 def create_subscription_for_preview_row(run, row):
     payload = json.loads(row.generation_payload)
     if row.billing_type == BILLING_TYPE_DIRECT_DEBIT and not get_active_source_mandate(
-        "Mitglied", row.payer_mitglied, "Mitgliedsbeitrag", payload.get("sepa_mandat")
+        "Mitglied", row.payer_mitglied, payload.get("sepa_mandat")
     ):
         raise BillingRowError(_("Das aktive SEPA-Mandat hat sich seit der Vorschau geaendert."))
 
@@ -642,7 +642,7 @@ def validate_membership_periods(doc) -> None:
             frappe.throw(_("Beitragsplaene desselben Zeitraums muessen unterschiedliche, ermittelbare Betraege haben."))
 
 
-def get_active_source_mandate(doctype: str, source_name: str, category: str, mandate_name: str | None) -> str | None:
+def get_active_source_mandate(doctype: str, source_name: str, mandate_name: str | None) -> str | None:
     if not mandate_name:
         return None
     matches = frappe.db.get_list(
@@ -650,7 +650,6 @@ def get_active_source_mandate(doctype: str, source_name: str, category: str, man
         filters={
             "name": mandate_name,
             "status": "Aktiv",
-            "mandatskategorie": category,
             "bezugs_doctype": doctype,
             "bezugs_name": source_name,
         },

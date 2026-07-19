@@ -10,15 +10,14 @@
  "field_order": [
   "mandat_section",
   "mandatsreferenz",
-  "mandatskategorie",
   "status",
+  "mandatsdatum",
+  "unterschriebenes_mandat",
+  "bemerkungen",
   "reference_column_break",
   "bezugs_doctype",
   "bezugs_name",
   "customer",
-  "mandatsdetails_section",
-  "mandatsdatum",
-  "unterschriebenes_mandat",
   "einzugsplanung_section",
   "einzugsintervall",
   "einzugsplan_ab",
@@ -26,6 +25,7 @@
   "planung_column_break",
   "wochentag",
   "monatstag",
+  "regelmaessiger_einzugsbetrag",
   "einzugstermine",
   "projektion_section",
   "naechster_solltermin",
@@ -42,9 +42,8 @@
   "bic",
   "bank",
   "bank_name_freitext",
-  "erpnext_section",
   "bank_account",
-  "bemerkungen"
+  "einzugswaehrung"
  ],
  "fields": [
   {
@@ -64,24 +63,30 @@
    "unique": 1
   },
   {
-   "default": "Mitgliedsbeitrag",
-   "fieldname": "mandatskategorie",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Mandatskategorie",
-   "options": "Mitgliedsbeitrag\nMiete",
-   "reqd": 1
-  },
-  {
    "default": "Entwurf",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Status",
+   "label": "Mandatsstatus",
    "options": "Entwurf\nAktiv\nWiderrufen\nErsetzt",
    "reqd": 1
+  },
+  {
+   "fieldname": "mandatsdatum",
+   "fieldtype": "Date",
+   "label": "Mandatsdatum",
+   "mandatory_depends_on": "eval:doc.status == 'Aktiv'"
+  },
+  {
+   "fieldname": "unterschriebenes_mandat",
+   "fieldtype": "Attach",
+   "label": "Unterschriebenes Mandat"
+  },
+  {
+   "fieldname": "bemerkungen",
+   "fieldtype": "Small Text",
+   "label": "Bemerkungen"
   },
   {
    "fieldname": "reference_column_break",
@@ -90,10 +95,10 @@
   {
    "default": "Mitglied",
    "fieldname": "bezugs_doctype",
-   "fieldtype": "Link",
+   "fieldtype": "Select",
    "in_standard_filter": 1,
-    "label": "Referenztyp",
-   "options": "DocType",
+   "label": "Referenztyp",
+   "options": "Mitglied\nMieter",
    "reqd": 1
   },
   {
@@ -112,26 +117,10 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-    "label": "Kunde",
+   "label": "Kunde",
    "options": "Customer",
    "read_only": 1,
    "search_index": 1
-  },
-  {
-   "fieldname": "mandatsdetails_section",
-   "fieldtype": "Section Break",
-   "label": "Mandatsdetails"
-  },
-  {
-   "fieldname": "mandatsdatum",
-   "fieldtype": "Date",
-   "label": "Mandatsdatum",
-   "mandatory_depends_on": "eval:doc.status == 'Aktiv'"
-  },
-  {
-   "fieldname": "unterschriebenes_mandat",
-   "fieldtype": "Attach",
-   "label": "Unterschriebenes Mandat"
   },
   {
    "fieldname": "einzugsplanung_section",
@@ -176,8 +165,15 @@
    "label": "Monatstag"
   },
   {
+   "depends_on": "eval:['Woechentlich', 'Monatlich'].includes(doc.einzugsintervall)",
+   "fieldname": "regelmaessiger_einzugsbetrag",
+   "fieldtype": "Currency",
+   "label": "Einzugsbetrag",
+   "options": "einzugswaehrung"
+  },
+  {
    "depends_on": "eval:['Vierteljaehrlich', 'Halbjaehrlich', 'Jaehrlich'].includes(doc.einzugsintervall)",
-   "description": "Vierteljaehrlich benoetigt vier, halbjaehrlich zwei und jaehrlich einen frei waehbaren Monat-/Tag-Termin.",
+   "description": "Vierteljaehrlich benoetigt vier, halbjaehrlich zwei und jaehrlich einen frei waehbaren Termin mit Einzugsbetrag.",
    "fieldname": "einzugstermine",
    "fieldtype": "Table",
    "label": "Jahrestermine",
@@ -276,11 +272,6 @@
     "label": "Bankname manuell"
   },
   {
-   "fieldname": "erpnext_section",
-   "fieldtype": "Section Break",
-    "label": "ERPNext-Verknuepfung"
-  },
-  {
    "fieldname": "bank_account",
    "fieldtype": "Link",
     "label": "Bankkonto",
@@ -289,9 +280,13 @@
    "read_only": 1
   },
   {
-   "fieldname": "bemerkungen",
-   "fieldtype": "Small Text",
-   "label": "Bemerkungen"
+   "default": "EUR",
+   "fieldname": "einzugswaehrung",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Einzugswaehrung",
+   "options": "Currency",
+   "read_only": 1
   }
  ],
  "icon": "fa fa-bank",
@@ -322,7 +317,7 @@
  ],
  "quick_entry": 0,
  "row_format": "Dynamic",
- "search_fields": "mandatsreferenz,mandatskategorie,bezugs_doctype,bezugs_name,customer,kontoinhaber",
+ "search_fields": "mandatsreferenz,bezugs_doctype,bezugs_name,customer,kontoinhaber",
  "show_name_in_global_search": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

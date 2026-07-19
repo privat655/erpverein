@@ -73,7 +73,10 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         doc = self.make_doc(
             status="Aktiv",
             interval=INTERVAL_QUARTERLY,
-            annual_dates=[{"monat": 1, "tag": 15}, {"monat": 4, "tag": 15}],
+            annual_dates=[
+                {"monat": 1, "kalendertag": 15, "einzugsbetrag": 25},
+                {"monat": 4, "kalendertag": 15, "einzugsbetrag": 25},
+            ],
         )
 
         with self.assertRaises(frappe.ValidationError):
@@ -82,10 +85,10 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         duplicate = self.make_doc(
             interval=INTERVAL_QUARTERLY,
             annual_dates=[
-                {"monat": 1, "tag": 15},
-                {"monat": 1, "tag": 15},
-                {"monat": 7, "tag": 15},
-                {"monat": 10, "tag": 15},
+                {"monat": 1, "kalendertag": 15, "einzugsbetrag": 25},
+                {"monat": 1, "kalendertag": 15, "einzugsbetrag": 30},
+                {"monat": 7, "kalendertag": 15, "einzugsbetrag": 25},
+                {"monat": 10, "kalendertag": 15, "einzugsbetrag": 25},
             ],
         )
         with self.assertRaises(frappe.ValidationError):
@@ -100,11 +103,19 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         self.assertIsNone(doc.naechster_einzugstermin)
 
     def test_active_status_distinguishes_due_and_planned(self):
-        due = self.make_doc(status="Aktiv", interval=INTERVAL_YEARLY, annual_dates=[{"monat": 7, "tag": 19}])
+        due = self.make_doc(
+            status="Aktiv",
+            interval=INTERVAL_YEARLY,
+            annual_dates=[{"monat": 7, "kalendertag": 19, "einzugsbetrag": 100}],
+        )
         validate_and_set_collection_schedule(due, as_of="2027-07-19")
         self.assertEqual(due.planungsstatus, STATUS_DUE)
 
-        planned = self.make_doc(status="Aktiv", interval=INTERVAL_YEARLY, annual_dates=[{"monat": 7, "tag": 20}])
+        planned = self.make_doc(
+            status="Aktiv",
+            interval=INTERVAL_YEARLY,
+            annual_dates=[{"monat": 7, "kalendertag": 20, "einzugsbetrag": 100}],
+        )
         validate_and_set_collection_schedule(planned, as_of="2027-07-19")
         self.assertEqual(planned.planungsstatus, STATUS_PLANNED)
 
@@ -112,18 +123,62 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         first, complete = get_schedule_config(
             self.make_doc(
                 interval=INTERVAL_HALF_YEARLY,
-                annual_dates=[{"monat": 7, "tag": 31}, {"monat": 3, "tag": 31}],
+                annual_dates=[
+                    {"monat": 7, "kalendertag": 31, "einzugsbetrag": 100},
+                    {"monat": 3, "kalendertag": 31, "einzugsbetrag": 50},
+                ],
             )
         )
         second, second_complete = get_schedule_config(
             self.make_doc(
                 interval=INTERVAL_HALF_YEARLY,
-                annual_dates=[{"monat": 3, "tag": 31}, {"monat": 7, "tag": 31}],
+                annual_dates=[
+                    {"monat": 3, "kalendertag": 31, "einzugsbetrag": 50},
+                    {"monat": 7, "kalendertag": 31, "einzugsbetrag": 100},
+                ],
             )
         )
 
         self.assertTrue(complete and second_complete)
         self.assertEqual(schedule_fingerprint(first), schedule_fingerprint(second))
+
+    def test_amount_changes_schedule_fingerprint(self):
+        first, complete = get_schedule_config(
+            self.make_doc(
+                interval=INTERVAL_YEARLY,
+                annual_dates=[{"monat": 3, "kalendertag": 31, "einzugsbetrag": 100}],
+            )
+        )
+        second, second_complete = get_schedule_config(
+            self.make_doc(
+                interval=INTERVAL_YEARLY,
+                annual_dates=[{"monat": 3, "kalendertag": 31, "einzugsbetrag": 125}],
+            )
+        )
+
+        self.assertTrue(complete and second_complete)
+        self.assertNotEqual(schedule_fingerprint(first), schedule_fingerprint(second))
+
+    def test_weekly_schedule_requires_positive_regular_amount(self):
+        missing = self.make_doc(status="Aktiv", interval=INTERVAL_WEEKLY, regular_amount=None)
+        missing.wochentag = "Freitag"
+
+        with self.assertRaises(frappe.ValidationError):
+            validate_and_set_collection_schedule(missing, as_of="2026-07-19")
+
+        invalid = self.make_doc(interval=INTERVAL_WEEKLY, regular_amount=-1)
+        invalid.wochentag = "Freitag"
+        with self.assertRaises(frappe.ValidationError):
+            get_schedule_config(invalid)
+
+    def test_annual_schedule_requires_amount_for_each_date(self):
+        doc = self.make_doc(
+            interval=INTERVAL_YEARLY,
+            annual_dates=[{"monat": 3, "kalendertag": 31}],
+        )
+
+        with self.assertRaises(frappe.ValidationError):
+            get_schedule_config(doc)
 
     def test_future_schedule_beyond_ten_years_is_not_ended(self):
         config = self.make_config(INTERVAL_YEARLY, annual_dates=[{"month": 3, "day": 31}])
@@ -137,7 +192,10 @@ class TestSEPACollectionScheduleService(UnitTestCase):
     def test_unbounded_clamped_nominal_collision_is_rejected(self):
         doc = self.make_doc(
             interval=INTERVAL_HALF_YEARLY,
-            annual_dates=[{"monat": 2, "tag": 28}, {"monat": 2, "tag": 29}],
+            annual_dates=[
+                {"monat": 2, "kalendertag": 28, "einzugsbetrag": 50},
+                {"monat": 2, "kalendertag": 29, "einzugsbetrag": 50},
+            ],
         )
 
         with self.assertRaises(frappe.ValidationError):
@@ -147,7 +205,10 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         doc = self.make_doc(
             interval=INTERVAL_HALF_YEARLY,
             start="2028-01-01",
-            annual_dates=[{"monat": 2, "tag": 28}, {"monat": 2, "tag": 29}],
+            annual_dates=[
+                {"monat": 2, "kalendertag": 28, "einzugsbetrag": 50},
+                {"monat": 2, "kalendertag": 29, "einzugsbetrag": 50},
+            ],
         )
         doc.einzugsplan_bis = "2028-12-31"
 
@@ -157,18 +218,27 @@ class TestSEPACollectionScheduleService(UnitTestCase):
         self.assertEqual(len(config["annual_dates"]), 2)
 
     @staticmethod
-    def make_config(interval, *, weekday=None, month_day=None, annual_dates=None):
+    def make_config(interval, *, weekday=None, month_day=None, regular_amount=None, annual_dates=None):
         return {
             "interval": interval,
             "start": "2026-01-01",
             "end": None,
             "weekday": weekday,
             "month_day": month_day,
+            "regular_amount": regular_amount,
             "annual_dates": annual_dates or [],
+            "currency": "EUR",
         }
 
     @staticmethod
-    def make_doc(*, status="Entwurf", interval=INTERVAL_YEARLY, start="2026-01-01", annual_dates=None):
+    def make_doc(
+        *,
+        status="Entwurf",
+        interval=INTERVAL_YEARLY,
+        start="2026-01-01",
+        regular_amount=100,
+        annual_dates=None,
+    ):
         return frappe._dict(
             {
                 "status": status,
@@ -177,6 +247,9 @@ class TestSEPACollectionScheduleService(UnitTestCase):
                 "einzugsplan_bis": None,
                 "wochentag": None,
                 "monatstag": None,
+                "regelmaessiger_einzugsbetrag": (
+                    regular_amount if interval in {INTERVAL_WEEKLY, INTERVAL_MONTHLY} else None
+                ),
                 "einzugstermine": [frappe._dict(row) for row in (annual_dates or [])],
             }
         )

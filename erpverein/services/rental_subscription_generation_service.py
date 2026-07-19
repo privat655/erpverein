@@ -213,7 +213,7 @@ def make_preview_rows_for_tenant(run, tenant: TenantBillingInfo) -> list[dict]:
     if not tenant.customer:
         return [make_error_row(tenant, _("Mieter hat keinen Kunden."))]
     if tenant.abrechnungsart == BILLING_TYPE_DIRECT_DEBIT and not get_active_source_mandate(
-        "Mieter", tenant.name, "Miete", tenant.sepa_mandat
+        "Mieter", tenant.name, tenant.sepa_mandat
     ):
         return [make_error_row(tenant, _("Mieter hat kein gueltiges aktives SEPA-Mandat."))]
 
@@ -414,7 +414,7 @@ def create_subscriptions_from_preview(run_name: str) -> dict:
 def create_subscription_for_preview_row(run, row):
     payload = json.loads(row.generation_payload)
     if row.billing_type == BILLING_TYPE_DIRECT_DEBIT and not get_active_source_mandate(
-        "Mieter", row.mieter, "Miete", payload.get("sepa_mandat")
+        "Mieter", row.mieter, payload.get("sepa_mandat")
     ):
         raise BillingRowError(_("Das aktive SEPA-Mandat hat sich seit der Vorschau geaendert."))
 

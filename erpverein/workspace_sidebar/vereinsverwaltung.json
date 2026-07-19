@@ -12,8 +12,8 @@
    "icon": "home",
    "indent": 0,
    "keep_closed": 0,
-   "label": "Start",
-   "link_to": "Startseite",
+    "label": "Vereinsverwaltung",
+    "link_to": "Vereinsverwaltung",
    "link_type": "Workspace",
    "show_arrow": 0,
    "type": "Link"
@@ -94,8 +94,8 @@
  "modified": "2026-07-04 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
- "name": "Startseite",
+ "name": "Vereinsverwaltung",
  "owner": "Administrator",
  "standard": 1,
- "title": "Startseite"
+ "title": "Vereinsverwaltung"
 }

@@ -29,7 +29,7 @@ bench --site <site> run-tests --app erpverein
 - Non-Administrator operators need the intersecting standard roles for affected records: `System Manager` for app DocTypes, `Sales Master Manager`/`Sales User` for Customer/Address/Contact writes, and `Accounts User` or `Accounts Manager` for Bank Account and Subscription operations. Do not bypass a missing role in code.
 - `SEPA Mandat` validates mandate state and synchronizes app-managed data to ERPNext `Bank Account`; changes touch sensitive banking data and reciprocal links.
 - `Beitragsabrechnung` and `Mietabrechnung` are non-submittable preview/run DocTypes. Their services create ERPNext `Subscription` records asynchronously; they do not post GL entries directly.
-- The Startseite UI has two durable sources: `erpverein/erpverein/workspace/startseite/startseite.json` and `erpverein/workspace_sidebar/startseite.json`. Existing sites need a patch to re-import changed workspace metadata.
+- The Vereinsverwaltung UI has two durable sources: `erpverein/erpverein/workspace/vereinsverwaltung/vereinsverwaltung.json` and `erpverein/workspace_sidebar/vereinsverwaltung.json`. During the patch-free preproduction phase, recreate sites after workspace identity changes instead of adding migration compatibility.
 
 ## Custom Fields And Migrations
 

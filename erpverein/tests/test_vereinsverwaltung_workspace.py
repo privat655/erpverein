@@ -7,20 +7,20 @@ from frappe.tests import UnitTestCase
 REPORT_NAME = "Ausgetretene Mitglieder mit aktiven Abonnements"
 
 
-class TestStartseiteWorkspace(UnitTestCase):
-	def test_workspace_json_defines_current_startseite_for_app(self):
+class TestVereinsverwaltungWorkspace(UnitTestCase):
+	def test_workspace_json_defines_vereinsverwaltung_for_app(self):
 		workspace_path = (
 			Path(__file__).resolve().parents[1]
 			/ "erpverein"
 			/ "workspace"
-			/ "startseite"
-			/ "startseite.json"
+			/ "vereinsverwaltung"
+			/ "vereinsverwaltung.json"
 		)
 		workspace = json.loads(workspace_path.read_text())
 
-		self.assertEqual(workspace["name"], "Startseite")
-		self.assertEqual(workspace["title"], "Startseite")
-		self.assertEqual(workspace["label"], "Startseite")
+		self.assertEqual(workspace["name"], "Vereinsverwaltung")
+		self.assertEqual(workspace["title"], "Vereinsverwaltung")
+		self.assertEqual(workspace["label"], "Vereinsverwaltung")
 		self.assertEqual(workspace["app"], "erpverein")
 		self.assertEqual(workspace["module"], "ERPverein")
 		links = {link["link_to"]: link for link in workspace["links"] if link.get("link_to")}
@@ -32,15 +32,16 @@ class TestStartseiteWorkspace(UnitTestCase):
 		self.assertEqual(links[REPORT_NAME]["link_type"], "Report")
 		self.assertEqual(links[REPORT_NAME]["is_query_report"], 1)
 
-	def test_workspace_sidebar_json_defines_current_startseite_for_app(self):
-		sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "startseite.json"
+	def test_workspace_sidebar_json_defines_vereinsverwaltung_for_app(self):
+		sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "vereinsverwaltung.json"
 		sidebar = json.loads(sidebar_path.read_text())
 
-		self.assertEqual(sidebar["name"], "Startseite")
-		self.assertEqual(sidebar["title"], "Startseite")
+		self.assertEqual(sidebar["name"], "Vereinsverwaltung")
+		self.assertEqual(sidebar["title"], "Vereinsverwaltung")
 		self.assertEqual(sidebar["app"], "erpverein")
 		self.assertEqual(sidebar["module"], "ERPverein")
-		self.assertEqual(sidebar["items"][0]["link_to"], "Startseite")
+		self.assertEqual(sidebar["items"][0]["label"], "Vereinsverwaltung")
+		self.assertEqual(sidebar["items"][0]["link_to"], "Vereinsverwaltung")
 		self.assertEqual(sidebar["items"][0]["link_type"], "Workspace")
 		links = {item["link_to"]: item for item in sidebar["items"]}
 		self.assertEqual(links["Mitglied"]["label"], "Mitglieder")

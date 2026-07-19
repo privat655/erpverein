@@ -7,7 +7,7 @@ from frappe.tests import UnitTestCase
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 EXPECTED_APP = "erpverein"
-EXPECTED_VERSION = "0.1.8"
+EXPECTED_VERSION = "0.1.9"
 
 
 class TestPackageReleaseIdentity(UnitTestCase):

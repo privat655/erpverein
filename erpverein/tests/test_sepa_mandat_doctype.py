@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import frappe
 from frappe.utils import get_datetime
@@ -19,13 +20,40 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         meta = frappe.get_meta("SEPA Mandat", cached=False)
 
         self.assertEqual(meta.get_field("mandat_section").label, "SEPA-Mandat")
+        self.assertIsNone(meta.get_field("mandatskategorie"))
         self.assertEqual(meta.get_field("bezugs_doctype").label, "Referenztyp")
+        self.assertEqual(meta.get_field("bezugs_doctype").fieldtype, "Select")
+        self.assertEqual(meta.get_field("bezugs_doctype").options, "Mitglied\nMieter")
+        self.assertEqual(meta.get_field("status").label, "Mandatsstatus")
         self.assertEqual(meta.get_field("customer").label, "Kunde")
         self.assertEqual(meta.get_field("bank_account").label, "Bankkonto")
         self.assertEqual(meta.get_field("einzugsintervall").label, "Einzugsintervall")
         self.assertEqual(meta.get_field("einzugstermine").options, "SEPA Einzugstermin")
         self.assertTrue(meta.get_field("naechster_einzugstermin").in_list_view)
         self.assertTrue(meta.get_field("planungsstatus").in_list_view)
+
+        schedule_meta = frappe.get_meta("SEPA Einzugstermin", cached=False)
+        self.assertIsNone(schedule_meta.get_field("tag"))
+        self.assertEqual(schedule_meta.get_field("kalendertag").label, "Kalendertag")
+        self.assertEqual(schedule_meta.get_field("einzugsbetrag").fieldtype, "Currency")
+        self.assertEqual(schedule_meta.get_field("einzugsbetrag").options, "waehrung")
+
+        field_order = [field.fieldname for field in meta.fields]
+        self.assertLess(field_order.index("bemerkungen"), field_order.index("reference_column_break"))
+        self.assertLess(field_order.index("bank_name_freitext"), field_order.index("bank_account"))
+        self.assertIsNone(meta.get_field("mandatsdetails_section"))
+        self.assertIsNone(meta.get_field("erpnext_section"))
+
+    def test_list_view_does_not_replace_mandate_status_with_schedule_status(self):
+        list_view = (
+            Path(__file__).resolve().parents[1]
+            / "erpverein"
+            / "doctype"
+            / "sepa_mandat"
+            / "sepa_mandat_list.js"
+        )
+
+        self.assertFalse(list_view.exists())
 
     def test_active_mandat_requires_complete_collection_schedule(self):
         customer = make_customer("SEPA Schedule Required")
@@ -38,6 +66,21 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         with self.assertRaises(frappe.ValidationError):
             mandate.insert(ignore_permissions=True)
 
+    def test_monthly_collection_amount_is_persisted_in_eur(self):
+        customer = make_customer("SEPA Monthly Amount")
+        mitglied = make_mitglied(customer=customer.name)
+        mandate = make_sepa_mandat(mitglied)
+        mandate.einzugsintervall = "Monatlich"
+        mandate.monatstag = 15
+        mandate.regelmaessiger_einzugsbetrag = 42.5
+        mandate.set("einzugstermine", [])
+
+        mandate.insert(ignore_permissions=True)
+        mandate.reload()
+
+        self.assertEqual(mandate.regelmaessiger_einzugsbetrag, 42.5)
+        self.assertEqual(mandate.einzugswaehrung, "EUR")
+
     def test_active_membership_mandat_syncs_member_and_bank_account(self):
         customer = make_customer("SEPA Sync")
         mitglied = make_mitglied(customer=customer.name)
@@ -49,6 +92,8 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         mitglied.reload()
 
         self.assertEqual(mandate.customer, customer.name)
+        self.assertEqual(mandate.einzugswaehrung, "EUR")
+        self.assertEqual(mandate.einzugstermine[0].waehrung, "EUR")
         self.assertEqual(mitglied.sepa_mandat, mandate.name)
         self.assertTrue(mandate.bank_account)
 
@@ -277,6 +322,7 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         mandate.iban = new_iban
         mandate.einzugsintervall = "Monatlich"
         mandate.monatstag = 31
+        mandate.regelmaessiger_einzugsbetrag = 25
         mandate.set("einzugstermine", [])
 
         mandate.save(ignore_permissions=True, ignore_version=False)
@@ -431,14 +477,13 @@ def make_sepa_mandat(mitglied, bank: str | None = None, **overrides):
     data = {
         "doctype": "SEPA Mandat",
         "mandatsreferenz": f"MR-{frappe.generate_hash(length=10)}",
-        "mandatskategorie": "Mitgliedsbeitrag",
         "status": "Aktiv",
         "bezugs_doctype": "Mitglied",
         "bezugs_name": mitglied.name,
         "mandatsdatum": "2026-01-01",
         "einzugsintervall": "Jaehrlich",
         "einzugsplan_ab": "2026-01-01",
-        "einzugstermine": [{"monat": 3, "tag": 31}],
+        "einzugstermine": [{"monat": 3, "kalendertag": 31, "einzugsbetrag": 25}],
         "kontoinhaber": mitglied.mitglied_name,
         "iban": make_german_iban(),
         "bic": "COBADEFFXXX",
@@ -453,14 +498,13 @@ def make_rent_sepa_mandat(mieter, bank: str | None = None, **overrides):
     data = {
         "doctype": "SEPA Mandat",
         "mandatsreferenz": f"RM-{frappe.generate_hash(length=10)}",
-        "mandatskategorie": "Miete",
         "status": "Aktiv",
         "bezugs_doctype": "Mieter",
         "bezugs_name": mieter.name,
         "mandatsdatum": "2026-01-01",
         "einzugsintervall": "Jaehrlich",
         "einzugsplan_ab": "2026-01-01",
-        "einzugstermine": [{"monat": 3, "tag": 31}],
+        "einzugstermine": [{"monat": 3, "kalendertag": 31, "einzugsbetrag": 100}],
         "kontoinhaber": mieter.mieter_name,
         "iban": make_german_iban(),
         "bic": "COBADEFFXXX",

@@ -9,8 +9,6 @@ from erpverein.custom_fields import BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT
 from erpverein.services.sepa_collection_schedule_service import validate_and_set_collection_schedule
 
 
-MANDATE_CATEGORY_MEMBERSHIP = "Mitgliedsbeitrag"
-MANDATE_CATEGORY_RENT = "Miete"
 MANDATE_STATUS_DRAFT = "Entwurf"
 MANDATE_STATUS_ACTIVE = "Aktiv"
 MANDATE_STATUS_REVOKED = "Widerrufen"
@@ -23,8 +21,7 @@ ALLOWED_STATUSES = {
     MANDATE_STATUS_REVOKED,
     MANDATE_STATUS_REPLACED,
 }
-ALLOWED_CATEGORIES = {MANDATE_CATEGORY_MEMBERSHIP, MANDATE_CATEGORY_RENT}
-SUPPORTED_REFERENCE_DOCTYPES = {MANDATE_CATEGORY_MEMBERSHIP: "Mitglied", MANDATE_CATEGORY_RENT: "Mieter"}
+SUPPORTED_REFERENCE_DOCTYPES = {"Mitglied", "Mieter"}
 
 
 def normalize_text(value: object) -> str | None:
@@ -65,7 +62,7 @@ def validate_iban(value: str | None) -> bool:
 def validate_sepa_mandat(doc) -> None:
     normalize_sepa_mandat(doc)
     validate_mandate_state_transition(doc)
-    validate_category_and_reference(doc)
+    validate_reference(doc)
     lock_mandate_references(doc)
     set_customer_from_reference(doc)
     validate_unique_mandate_reference(doc)
@@ -99,7 +96,6 @@ def validate_mandate_state_transition(doc) -> None:
 
 def normalize_sepa_mandat(doc) -> None:
     doc.mandatsreferenz = normalize_text(doc.mandatsreferenz)
-    doc.mandatskategorie = normalize_text(doc.mandatskategorie) or MANDATE_CATEGORY_MEMBERSHIP
     doc.status = normalize_text(doc.status) or MANDATE_STATUS_DRAFT
     doc.bezugs_doctype = normalize_text(doc.bezugs_doctype)
     doc.bezugs_name = normalize_text(doc.bezugs_name)
@@ -112,25 +108,16 @@ def normalize_sepa_mandat(doc) -> None:
     doc.bic = normalize_bic(doc.bic)
     doc.bank = normalize_text(doc.bank)
     doc.bank_name_freitext = normalize_text(doc.bank_name_freitext)
-    if doc.mandatskategorie == MANDATE_CATEGORY_MEMBERSHIP and not doc.bezugs_doctype:
-        doc.bezugs_doctype = "Mitglied"
-    if doc.mandatskategorie == MANDATE_CATEGORY_RENT and not doc.bezugs_doctype:
-        doc.bezugs_doctype = "Mieter"
+    doc.einzugswaehrung = "EUR"
+    for row in doc.get("einzugstermine") or []:
+        row.waehrung = "EUR"
 
 
-def validate_category_and_reference(doc) -> None:
+def validate_reference(doc) -> None:
     if doc.status not in ALLOWED_STATUSES:
         frappe.throw(_("Ungueltiger SEPA-Mandatsstatus: {0}").format(frappe.bold(doc.status)))
-    if doc.mandatskategorie not in ALLOWED_CATEGORIES:
-        frappe.throw(_("Ungueltige Mandatskategorie: {0}").format(frappe.bold(doc.mandatskategorie)))
-
-    expected_doctype = SUPPORTED_REFERENCE_DOCTYPES.get(doc.mandatskategorie)
-    if doc.bezugs_doctype != expected_doctype:
-        frappe.throw(
-            _("Mandatskategorie {0} muss auf {1} verweisen.").format(
-                frappe.bold(doc.mandatskategorie), frappe.bold(expected_doctype)
-            )
-        )
+    if doc.bezugs_doctype not in SUPPORTED_REFERENCE_DOCTYPES:
+        frappe.throw(_("Ungueltiger Referenztyp: {0}").format(frappe.bold(doc.bezugs_doctype)))
     if not doc.bezugs_name or not frappe.db.exists(doc.bezugs_doctype, doc.bezugs_name):
         frappe.throw(_("Das Bezugsdokument fuer das SEPA-Mandat ist ungueltig."))
     if doc.iban and not validate_iban(doc.iban):
@@ -196,7 +183,6 @@ def get_other_active_mandate(doc) -> str | None:
     return frappe.db.get_value(
         "SEPA Mandat",
         {
-            "mandatskategorie": doc.mandatskategorie,
             "bezugs_doctype": doc.bezugs_doctype,
             "bezugs_name": doc.bezugs_name,
             "status": MANDATE_STATUS_ACTIVE,

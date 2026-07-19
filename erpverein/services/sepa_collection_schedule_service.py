@@ -145,6 +145,7 @@ def get_schedule_config(doc) -> tuple[dict | None, bool]:
     end = getdate(doc.einzugsplan_bis) if doc.get("einzugsplan_bis") else None
     weekday = _text(doc.get("wochentag"))
     month_day = _optional_int(doc.get("monatstag"))
+    regular_amount = _optional_amount(doc.get("regelmaessiger_einzugsbetrag"))
     annual_dates = _annual_dates(doc.get("einzugstermine") or [])
 
     if interval and interval not in ALLOWED_INTERVALS:
@@ -154,7 +155,10 @@ def get_schedule_config(doc) -> tuple[dict | None, bool]:
 
     if month_day is not None and not 1 <= month_day <= 31:
         frappe.throw(_("Monatstag muss zwischen 1 und 31 liegen."))
-    if len(annual_dates) != len(set(annual_dates)):
+    if regular_amount is not None and regular_amount <= 0:
+        frappe.throw(_("Einzugsbetrag muss groesser als null sein."))
+    annual_date_keys = [(month, day) for month, day, amount in annual_dates]
+    if len(annual_date_keys) != len(set(annual_date_keys)):
         frappe.throw(_("Einzugstermine duerfen nicht doppelt vorkommen."))
 
     if not interval:
@@ -165,14 +169,14 @@ def get_schedule_config(doc) -> tuple[dict | None, bool]:
             frappe.throw(_("Ein woechentlicher Einzugsplan darf keinen Monatstag oder Jahrestermine enthalten."))
         if weekday and weekday not in WEEKDAYS:
             frappe.throw(_("Ungueltiger Wochentag: {0}").format(frappe.bold(weekday)))
-        complete = bool(start and weekday)
+        complete = bool(start and weekday and regular_amount is not None)
     elif interval == INTERVAL_MONTHLY:
         if weekday or annual_dates:
             frappe.throw(_("Ein monatlicher Einzugsplan darf keinen Wochentag oder Jahrestermine enthalten."))
-        complete = bool(start and month_day is not None)
+        complete = bool(start and month_day is not None and regular_amount is not None)
     else:
-        if weekday or month_day is not None:
-            frappe.throw(_("Dieser Einzugsplan darf keinen Wochentag oder Monatstag enthalten."))
+        if weekday or month_day is not None or regular_amount is not None:
+            frappe.throw(_("Dieser Einzugsplan darf keinen Wochentag, Monatstag oder regelmaessigen Einzugsbetrag enthalten."))
         expected_count = ANNUAL_INTERVAL_COUNTS[interval]
         if len(annual_dates) > expected_count:
             frappe.throw(
@@ -192,7 +196,11 @@ def get_schedule_config(doc) -> tuple[dict | None, bool]:
         "end": str(end) if end else None,
         "weekday": weekday,
         "month_day": month_day,
-        "annual_dates": [{"month": month, "day": day} for month, day in annual_dates],
+        "regular_amount": regular_amount,
+        "annual_dates": [
+            {"month": month, "day": day, "amount": amount} for month, day, amount in annual_dates
+        ],
+        "currency": "EUR",
     }
     return config, True
 
@@ -206,7 +214,7 @@ def next_collection_occurrence(config: dict, as_of) -> tuple[date, date] | None:
 
 
 def validate_nominal_date_collisions(
-    annual_dates: list[tuple[int, int]], start: date | None, end: date | None
+    annual_dates: list[tuple[int, int, float]], start: date | None, end: date | None
 ) -> None:
     if len(annual_dates) < 2:
         return
@@ -220,7 +228,7 @@ def validate_nominal_date_collisions(
         years = (leap_year, non_leap_year)
 
     for year in years:
-        nominal = [clamp_month_day(year, month, day) for month, day in annual_dates]
+        nominal = [clamp_month_day(year, month, day) for month, day, amount in annual_dates]
         nominal = [value for value in nominal if (not start or value >= start) and (not end or value <= end)]
         if len(nominal) != len(set(nominal)):
             frappe.throw(_("Jahrestermine duerfen nicht auf denselben Solltermin fallen."))
@@ -305,20 +313,23 @@ def refresh_collection_schedule_projections() -> None:
             )
 
 
-def _annual_dates(rows) -> list[tuple[int, int]]:
+def _annual_dates(rows) -> list[tuple[int, int, float]]:
     values = []
     for row in rows:
         month = _optional_int(row.get("monat"))
-        day = _optional_int(row.get("tag"))
-        if month is None and day is None:
+        day = _optional_int(row.get("kalendertag"))
+        amount = _optional_amount(row.get("einzugsbetrag"))
+        if month is None and day is None and amount is None:
             continue
         if month is None or day is None:
-            frappe.throw(_("Monat und Tag sind fuer jeden Einzugstermin erforderlich."))
+            frappe.throw(_("Monat und Kalendertag sind fuer jeden Einzugstermin erforderlich."))
         if not 1 <= month <= 12:
             frappe.throw(_("Monat muss zwischen 1 und 12 liegen."))
         if not 1 <= day <= 31:
-            frappe.throw(_("Tag muss zwischen 1 und 31 liegen."))
-        values.append((month, day))
+            frappe.throw(_("Kalendertag muss zwischen 1 und 31 liegen."))
+        if amount is None or amount <= 0:
+            frappe.throw(_("Einzugsbetrag muss fuer jeden Einzugstermin groesser als null sein."))
+        values.append((month, day, amount))
     return sorted(values)
 
 
@@ -329,6 +340,7 @@ def _has_schedule_input(doc) -> bool:
         or doc.get("einzugsplan_bis")
         or doc.get("wochentag")
         or doc.get("monatstag") not in {None, "", 0, "0"}
+        or doc.get("regelmaessiger_einzugsbetrag") not in {None, "", 0, "0"}
         or doc.get("einzugstermine")
     )
 
@@ -348,6 +360,15 @@ def _optional_int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         frappe.throw(_("Terminwerte muessen ganze Zahlen sein."))
+
+
+def _optional_amount(value) -> float | None:
+    if value in {None, ""}:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        frappe.throw(_("Einzugsbetraege muessen gueltige Zahlen sein."))
 
 
 def _text(value) -> str | None:

@@ -12,7 +12,7 @@
  "idx": 0,
  "indicator_color": "blue",
  "is_hidden": 0,
- "label": "Startseite",
+ "label": "Vereinsverwaltung",
  "links": [
   {
    "hidden": 0,
@@ -92,7 +92,7 @@
  "modified": "2026-07-04 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
- "name": "Startseite",
+ "name": "Vereinsverwaltung",
  "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
@@ -102,6 +102,6 @@
  "roles": [],
  "sequence_id": 1.0,
  "shortcuts": [],
- "title": "Startseite",
+ "title": "Vereinsverwaltung",
  "type": "Workspace"
 }

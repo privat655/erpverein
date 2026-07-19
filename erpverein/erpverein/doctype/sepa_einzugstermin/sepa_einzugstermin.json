@@ -5,10 +5,12 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["monat", "tag"],
+ "field_order": ["monat", "kalendertag", "einzugsbetrag", "waehrung"],
  "fields": [
   {"fieldname": "monat", "fieldtype": "Int", "in_list_view": 1, "label": "Monat", "reqd": 1},
-  {"description": "Nicht vorhandene Tage werden auf den letzten Kalendertag des Monats gesetzt.", "fieldname": "tag", "fieldtype": "Int", "in_list_view": 1, "label": "Tag", "reqd": 1}
+  {"description": "Nicht vorhandene Tage werden auf den letzten Kalendertag des Monats gesetzt.", "fieldname": "kalendertag", "fieldtype": "Int", "in_list_view": 1, "label": "Kalendertag", "reqd": 1},
+  {"fieldname": "einzugsbetrag", "fieldtype": "Currency", "in_list_view": 1, "label": "Einzugsbetrag", "options": "waehrung", "reqd": 1},
+  {"default": "EUR", "fieldname": "waehrung", "fieldtype": "Link", "hidden": 1, "label": "Waehrung", "options": "Currency", "read_only": 1}
  ],
  "idx": 1,
  "istable": 1,

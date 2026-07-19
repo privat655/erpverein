@@ -18,21 +18,8 @@ frappe.ui.form.on("SEPA Mandat", {
         }
     },
 
-    setup(frm) {
-        frm.set_query("bezugs_doctype", () => ({
-            filters: {
-                name: ["in", ["Mitglied", "Mieter"]],
-            },
-        }));
-    },
-
-    mandatskategorie(frm) {
-        if (frm.doc.mandatskategorie === "Mitgliedsbeitrag" && frm.doc.bezugs_doctype !== "Mitglied") {
-            frm.set_value("bezugs_doctype", "Mitglied");
-            frm.set_value("bezugs_name", "");
-        }
-        if (frm.doc.mandatskategorie === "Miete" && frm.doc.bezugs_doctype !== "Mieter") {
-            frm.set_value("bezugs_doctype", "Mieter");
+    bezugs_doctype(frm) {
+        if (frm.doc.bezugs_name) {
             frm.set_value("bezugs_name", "");
         }
     },
@@ -49,6 +36,9 @@ frappe.ui.form.on("SEPA Mandat", {
             frm.clear_table("einzugstermine");
             frm.refresh_field("einzugstermine");
         }
+        if (!["Woechentlich", "Monatlich"].includes(interval)) {
+            frm.set_value("regelmaessiger_einzugsbetrag", null);
+        }
         set_schedule_visibility(frm);
     },
 });
@@ -57,5 +47,6 @@ function set_schedule_visibility(frm) {
     const interval = frm.doc.einzugsintervall;
     frm.toggle_display("wochentag", interval === "Woechentlich");
     frm.toggle_display("monatstag", interval === "Monatlich");
+    frm.toggle_display("regelmaessiger_einzugsbetrag", ["Woechentlich", "Monatlich"].includes(interval));
     frm.toggle_display("einzugstermine", ["Vierteljaehrlich", "Halbjaehrlich", "Jaehrlich"].includes(interval));
 }
