@@ -363,7 +363,7 @@ def _optional_int(value) -> int | None:
 
 
 def _optional_amount(value) -> float | None:
-    if value in {None, ""}:
+    if value in {None, "", 0, 0.0, "0", "0.0"}:
         return None
     try:
         return float(value)

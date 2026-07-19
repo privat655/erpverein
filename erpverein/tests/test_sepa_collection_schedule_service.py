@@ -248,7 +248,7 @@ class TestSEPACollectionScheduleService(UnitTestCase):
                 "wochentag": None,
                 "monatstag": None,
                 "regelmaessiger_einzugsbetrag": (
-                    regular_amount if interval in {INTERVAL_WEEKLY, INTERVAL_MONTHLY} else None
+                    regular_amount if interval in {INTERVAL_WEEKLY, INTERVAL_MONTHLY} else 0.0
                 ),
                 "einzugstermine": [frappe._dict(row) for row in (annual_dates or [])],
             }
