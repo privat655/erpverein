@@ -3,9 +3,10 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cstr, getdate
+from frappe.utils import cstr
 
 from erpverein.custom_fields import BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME
+from erpverein.services.sepa_collection_schedule_service import validate_and_set_collection_schedule
 
 
 MANDATE_CATEGORY_MEMBERSHIP = "Mitgliedsbeitrag"
@@ -14,8 +15,6 @@ MANDATE_STATUS_DRAFT = "Entwurf"
 MANDATE_STATUS_ACTIVE = "Aktiv"
 MANDATE_STATUS_REVOKED = "Widerrufen"
 MANDATE_STATUS_REPLACED = "Ersetzt"
-MANDATE_MODE_YEARLY = "Jaehrlich"
-MANDATE_MODE_HALF_YEARLY = "Halbjaehrlich"
 BANK_ACCOUNT_STATE_SCHEMA_VERSION = 2
 
 ALLOWED_STATUSES = {
@@ -25,23 +24,7 @@ ALLOWED_STATUSES = {
     MANDATE_STATUS_REPLACED,
 }
 ALLOWED_CATEGORIES = {MANDATE_CATEGORY_MEMBERSHIP, MANDATE_CATEGORY_RENT}
-ALLOWED_MODES = {MANDATE_MODE_YEARLY, MANDATE_MODE_HALF_YEARLY}
 SUPPORTED_REFERENCE_DOCTYPES = {MANDATE_CATEGORY_MEMBERSHIP: "Mitglied", MANDATE_CATEGORY_RENT: "Mieter"}
-MANDATE_IDENTITY_FIELDS = (
-    "mandatsreferenz",
-    "mandatskategorie",
-    "bezugs_doctype",
-    "bezugs_name",
-    "customer",
-    "mandatsdatum",
-    "einzugsmodus",
-    "kontoinhaber",
-    "kontoinhaber_adresse",
-    "iban",
-    "bic",
-    "bank",
-    "bank_account",
-)
 
 
 def normalize_text(value: object) -> str | None:
@@ -87,6 +70,7 @@ def validate_sepa_mandat(doc) -> None:
     set_customer_from_reference(doc)
     validate_unique_mandate_reference(doc)
     validate_active_mandate(doc)
+    validate_and_set_collection_schedule(doc)
     validate_active_reference_is_not_orphaned(doc)
 
 
@@ -111,21 +95,6 @@ def validate_mandate_state_transition(doc) -> None:
         "erpverein_replacement_transition"
     ):
         frappe.throw(_("Der Status Ersetzt darf nur durch die Ersatzmandat-Funktion gesetzt werden."))
-    if previous.status == MANDATE_STATUS_ACTIVE:
-        changed = [
-            fieldname
-            for fieldname in MANDATE_IDENTITY_FIELDS
-            if _mandate_identity_value(fieldname, previous.get(fieldname))
-            != _mandate_identity_value(fieldname, doc.get(fieldname))
-        ]
-        if changed:
-            frappe.throw(_("Identitaets- und Bankdaten eines aktiven SEPA-Mandats sind unveraenderlich. Bitte ein Ersatzmandat anlegen."))
-
-
-def _mandate_identity_value(fieldname: str, value):
-    if fieldname == "mandatsdatum" and value:
-        return getdate(value)
-    return value
 
 
 def normalize_sepa_mandat(doc) -> None:
@@ -135,7 +104,8 @@ def normalize_sepa_mandat(doc) -> None:
     doc.bezugs_doctype = normalize_text(doc.bezugs_doctype)
     doc.bezugs_name = normalize_text(doc.bezugs_name)
     doc.customer = normalize_text(doc.customer)
-    doc.einzugsmodus = normalize_text(doc.einzugsmodus)
+    doc.einzugsintervall = normalize_text(doc.get("einzugsintervall"))
+    doc.wochentag = normalize_text(doc.get("wochentag"))
     doc.kontoinhaber = normalize_text(doc.kontoinhaber)
     doc.kontoinhaber_adresse = normalize_text(doc.kontoinhaber_adresse)
     doc.iban = normalize_iban(doc.iban)
@@ -163,8 +133,6 @@ def validate_category_and_reference(doc) -> None:
         )
     if not doc.bezugs_name or not frappe.db.exists(doc.bezugs_doctype, doc.bezugs_name):
         frappe.throw(_("Das Bezugsdokument fuer das SEPA-Mandat ist ungueltig."))
-    if doc.einzugsmodus and doc.einzugsmodus not in ALLOWED_MODES:
-        frappe.throw(_("Ungueltiger Einzugsmodus: {0}").format(frappe.bold(doc.einzugsmodus)))
     if doc.iban and not validate_iban(doc.iban):
         frappe.throw(_("IBAN {0} ist ungueltig.").format(frappe.bold(mask_iban(doc.iban))))
 
@@ -209,7 +177,6 @@ def validate_active_mandate(doc) -> None:
     required_fields = {
         "mandatsreferenz": _("Mandatsreferenz"),
         "mandatsdatum": _("Mandatsdatum"),
-        "einzugsmodus": _("Einzugsmodus"),
         "kontoinhaber": _("Kontoinhaber"),
         "iban": _("IBAN"),
         "bank": _("Bank"),
@@ -318,11 +285,30 @@ def get_existing_bank_account_for_mandat(doc) -> str | None:
         get_value_before_save(doc, fieldname) not in {None, doc.get(fieldname)}
         for fieldname in ["bezugs_doctype", "bezugs_name", "customer"]
     )
-    if doc.bank_account and not reference_changed and frappe.db.exists("Bank Account", doc.bank_account):
+    previous = doc.get_doc_before_save()
+    bank_identity_changed = bool(
+        previous
+        and any(
+            normalize_bank_value(fieldname, previous.get(source_field))
+            != normalize_bank_value(fieldname, doc.get(source_field))
+            for source_field, fieldname in [("iban", "iban"), ("bic", "branch_code"), ("bank", "bank")]
+        )
+    )
+    if (
+        doc.bank_account
+        and not reference_changed
+        and not bank_identity_changed
+        and frappe.db.exists("Bank Account", doc.bank_account)
+    ):
         bank_account = frappe.get_doc("Bank Account", doc.bank_account)
         bank_account.check_permission("read")
-        ensure_bank_account_is_compatible(doc, bank_account)
-        return bank_account.name
+        if bank_account.get(BANK_ACCOUNT_MANAGED_FIELDNAME):
+            if not managed_bank_account_is_shared(doc, bank_account) or bank_account_values_are_compatible(
+                doc, bank_account
+            ):
+                return bank_account.name
+        if bank_account_values_are_compatible(doc, bank_account):
+            return bank_account.name
 
     names = frappe.db.get_list(
         "Bank Account",
@@ -330,24 +316,29 @@ def get_existing_bank_account_for_mandat(doc) -> str | None:
         pluck="name",
     )
     compatible = []
-    same_iban = []
     for name in names:
         bank_account = frappe.get_doc("Bank Account", name)
-        if normalize_iban(bank_account.iban) == normalize_iban(doc.iban):
-            same_iban.append(name)
         if bank_account_values_are_compatible(doc, bank_account):
             compatible.append(name)
     if len(compatible) > 1:
         frappe.throw(_("Mehrere kompatible Bankkonten fuer IBAN {0} gefunden.").format(frappe.bold(mask_iban(doc.iban))))
     if compatible:
         return compatible[0]
-    if same_iban:
-        frappe.throw(
-            _("Ein vorhandenes Bankkonto fuer IBAN {0} widerspricht Bank oder BIC des Mandats und wird nicht veraendert.").format(
-                frappe.bold(mask_iban(doc.iban))
-            )
-        )
     return None
+
+
+def managed_bank_account_is_shared(doc, bank_account) -> bool:
+    return bool(
+        frappe.db.get_value(
+            "SEPA Mandat",
+            {
+                "bank_account": bank_account.name,
+                "status": MANDATE_STATUS_ACTIVE,
+                "name": ("!=", doc.name),
+            },
+            "name",
+        )
+    )
 
 
 def bank_account_values_are_compatible(doc, bank_account) -> bool:

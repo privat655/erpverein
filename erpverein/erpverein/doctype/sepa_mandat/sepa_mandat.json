@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 0,
- "autoname": "field:mandatsreferenz",
+ "autoname": "SEPA-.YYYY.-.#####",
  "creation": "2026-07-04 00:00:00.000000",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -18,8 +18,22 @@
   "customer",
   "mandatsdetails_section",
   "mandatsdatum",
-  "einzugsmodus",
   "unterschriebenes_mandat",
+  "einzugsplanung_section",
+  "einzugsintervall",
+  "einzugsplan_ab",
+  "einzugsplan_bis",
+  "planung_column_break",
+  "wochentag",
+  "monatstag",
+  "einzugstermine",
+  "projektion_section",
+  "naechster_solltermin",
+  "naechster_einzugstermin",
+  "projektion_column_break",
+  "planungsstatus",
+  "planung_berechnet_am",
+  "einzugsplan_fingerprint",
   "bankdaten_section",
   "kontoinhaber",
   "kontoinhaber_adresse",
@@ -115,16 +129,107 @@
    "mandatory_depends_on": "eval:doc.status == 'Aktiv'"
   },
   {
-   "fieldname": "einzugsmodus",
-   "fieldtype": "Select",
-   "label": "Einzugsmodus",
-   "mandatory_depends_on": "eval:doc.status == 'Aktiv'",
-   "options": "\nJaehrlich\nHalbjaehrlich"
-  },
-  {
    "fieldname": "unterschriebenes_mandat",
    "fieldtype": "Attach",
    "label": "Unterschriebenes Mandat"
+  },
+  {
+   "fieldname": "einzugsplanung_section",
+   "fieldtype": "Section Break",
+   "label": "Einzugsplan"
+  },
+  {
+   "description": "Steuert nur geplante Lastschrifteinzuege und hat keinen Einfluss auf Rechnungen oder Abonnements.",
+   "fieldname": "einzugsintervall",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Einzugsintervall",
+   "options": "\nWoechentlich\nMonatlich\nVierteljaehrlich\nHalbjaehrlich\nJaehrlich"
+  },
+  {
+   "fieldname": "einzugsplan_ab",
+   "fieldtype": "Date",
+   "label": "Einzugsplan ab"
+  },
+  {
+   "fieldname": "einzugsplan_bis",
+   "fieldtype": "Date",
+   "label": "Einzugsplan bis"
+  },
+  {
+   "fieldname": "planung_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.einzugsintervall == 'Woechentlich'",
+   "fieldname": "wochentag",
+   "fieldtype": "Select",
+   "label": "Wochentag",
+   "options": "\nMontag\nDienstag\nMittwoch\nDonnerstag\nFreitag\nSamstag\nSonntag"
+  },
+  {
+   "depends_on": "eval:doc.einzugsintervall == 'Monatlich'",
+   "description": "Werte von 1 bis 31. Nicht vorhandene Tage werden auf den letzten Kalendertag gesetzt.",
+   "fieldname": "monatstag",
+   "fieldtype": "Int",
+   "label": "Monatstag"
+  },
+  {
+   "depends_on": "eval:['Vierteljaehrlich', 'Halbjaehrlich', 'Jaehrlich'].includes(doc.einzugsintervall)",
+   "description": "Vierteljaehrlich benoetigt vier, halbjaehrlich zwei und jaehrlich einen frei waehbaren Monat-/Tag-Termin.",
+   "fieldname": "einzugstermine",
+   "fieldtype": "Table",
+   "label": "Jahrestermine",
+   "options": "SEPA Einzugstermin"
+  },
+  {
+   "fieldname": "projektion_section",
+   "fieldtype": "Section Break",
+   "label": "Naechster Einzug"
+  },
+  {
+   "description": "Planmaessiger Termin vor der TARGET-Bankarbeitstagsanpassung.",
+   "fieldname": "naechster_solltermin",
+   "fieldtype": "Date",
+   "label": "Naechster Solltermin",
+   "read_only": 1
+  },
+  {
+   "description": "Solltermin, falls noetig auf den naechsten TARGET-Bankarbeitstag verschoben.",
+   "fieldname": "naechster_einzugstermin",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Naechster Einzugstermin",
+   "read_only": 1
+  },
+  {
+   "fieldname": "projektion_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "planungsstatus",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Planungsstatus",
+   "options": "Nicht konfiguriert\nUnvollstaendig\nEntwurf\nInaktiv\nGeplant\nEinzug faellig\nBeendet",
+   "read_only": 1
+  },
+  {
+   "fieldname": "planung_berechnet_am",
+   "fieldtype": "Date",
+   "label": "Planung berechnet am",
+   "read_only": 1
+  },
+  {
+   "fieldname": "einzugsplan_fingerprint",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Einzugsplan-Fingerprint",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "bankdaten_section",
@@ -198,7 +303,7 @@
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Mandat",
- "naming_rule": "By fieldname",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

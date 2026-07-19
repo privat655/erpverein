@@ -2,7 +2,7 @@
 
 ## Runtime And Commands
 
-- This is a Frappe/ERPNext v16 app, not a standalone Python service. `pyproject.toml` allows Frappe and ERPNext `>=16,<17`; the image workflow currently pins Frappe `v16.25.0` and ERPNext `v16.26.2`.
+- This is a Frappe/ERPNext v16 app, not a standalone Python service. `pyproject.toml` allows Frappe and ERPNext `>=16,<17`; the image workflow currently pins Frappe `v16.27.1` and ERPNext `v16.28.0`.
 - Run Frappe commands from a Bench where `erpverein` is installed. There is no repository-local lint, formatter, typecheck, or standalone test configuration.
 - The rename to package/app identity `erpverein` is an identity reset. Only clean-site installation is supported; old development sites from before the rename are explicitly unsupported and must not be migrated or treated as an update path.
 - Fresh-site verification order:
@@ -15,14 +15,7 @@ bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --light
 bench --site <site> run-tests --app erpverein
 ```
 
-- Existing-site update order; do not uninstall/reinstall for an update:
-
-```bash
-bench --site <site> backup --with-files
-bench --site <site> migrate
-bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --lightmode
-bench --site <site> run-tests --app erpverein
-```
+- The current preproduction baseline is patch-free and supports clean-site installation only. Recreate development sites instead of updating them. After the production baseline is declared, preserve all subsequently released patches as immutable migration history.
 
 - Run one test module with `bench --site <site> run-tests --app erpverein --module erpverein.tests.test_<name>`, for example `erpverein.tests.test_mieter_doctype`.
 - `hooks.py` runs `erpverein.tests.before_tests.before_tests`, which syncs app fields and small app-owned setup masters. Billing integration tests additionally require ERPNext's supported bootstrap data command shown above.
@@ -42,9 +35,7 @@ bench --site <site> run-tests --app erpverein
 
 - Never edit Frappe or ERPNext core and do not rely on manual Desk customization for durable behavior.
 - `erpverein/custom_fields.py` is the source of truth for app-owned fields on ERPNext DocTypes. `install.py` syncs those fields and setup data for fresh installs; an idempotent registered patch must handle existing sites.
-- Register migrations in `erpverein/patches.txt`. Custom Field and workspace syncs normally belong in `[post_model_sync]`; use `[pre_model_sync]` only when the old schema must be changed before model sync.
-- Released patches are migration history: keep them rerunnable and do not edit their behavior after release. Add a forward-fix patch instead, and avoid depending on mutable service helpers from historical patches.
-- A schema/data change is incomplete without both fresh-install coverage and update-path coverage. Patch tests should execute the patch twice and assert the resulting metadata/data.
+- Do not add migration patches before the production baseline is declared; make direct source changes and verify them on a clean site. After production starts, register migrations in `erpverein/patches.txt`, preserve released patch behavior, and cover both fresh-install and update paths.
 - Do not add broad Custom Field fixtures. Install, uninstall, patches, and tests must affect only fields owned by this app.
 - Do not call `frappe.db.commit()` from controllers, services, hooks, APIs, or patches; Bench/Frappe owns transaction boundaries.
 
@@ -61,7 +52,7 @@ bench --site <site> run-tests --app erpverein
 - Use `frappe.tests.UnitTestCase` for pure helpers and `IntegrationTestCase` for DB-backed DocType, permission, patch, and ERPNext integration behavior.
 - Changes to standard-DocType extensions need Custom Field metadata tests; reciprocal links need tests from both sides; patches need first-run and rerun tests.
 - `.github/workflows/build-image.yml` builds and loads the exact custom `linux/amd64` image, creates a clean site with pinned components, installs ERPNext and `erpverein`, migrates, and runs `bench --site ci.localhost run-tests --app erpverein` before any push. The same locally verified image is then pushed to GHCR.
-- Release/image tags must match `erpverein-v<erpnext-version>-<app-version>`, for example `erpverein-v16.26.2-0.1.0`. Tag pushes derive the ERPNext tag and app ref from that release tag while keeping Frappe and `frappe_docker` pinned; manual image tags are sanitized.
-- Before tagging, reconcile app version `0.1.0` in `pyproject.toml`, `erpverein/__init__.py`, and `README.md`. The workflow rejects a mismatch between either version source and the release tag.
+- Release/image tags must match `erpverein-v<erpnext-version>-<app-version>`, for example `erpverein-v16.28.0-0.1.6`. Tag pushes derive the ERPNext tag and app ref from that release tag while keeping Frappe and `frappe_docker` pinned; manual image tags are sanitized.
+- Before tagging, reconcile the app version in `pyproject.toml`, `erpverein/__init__.py`, and `README.md`. The workflow rejects a mismatch between either version source and the release tag.
 - The published image name is `ghcr.io/<owner>/erpverein`; no image is published unless the clean-site install, migrate, and complete app test gate succeeds.
 - Production uses one custom GHCR image across backend, frontend, websocket, scheduler, and both queue workers. Deploy the same image tag everywhere, then migrate and smoke-test Customer links, mandates, both billing runs, scheduler, and queues.

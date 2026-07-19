@@ -7,7 +7,7 @@ from frappe.tests import UnitTestCase
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 EXPECTED_APP = "erpverein"
-EXPECTED_VERSION = "0.1.5"
+EXPECTED_VERSION = "0.1.6"
 
 
 class TestPackageReleaseIdentity(UnitTestCase):
@@ -35,3 +35,13 @@ class TestPackageReleaseIdentity(UnitTestCase):
 		manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
 		self.assertIn("recursive-include erpverein ", manifest)
+
+	def test_preproduction_baseline_has_no_patches(self):
+		self.assertFalse((ROOT / "erpverein" / "patches.txt").exists())
+		self.assertEqual(list((ROOT / "erpverein" / "patches").glob("**/*.py")), [])
+
+	def test_collection_schedule_is_not_coupled_to_invoice_generation(self):
+		for filename in ("subscription_generation_service.py", "rental_subscription_generation_service.py"):
+			service = (ROOT / "erpverein" / "services" / filename).read_text(encoding="utf-8")
+			self.assertNotIn("einzugsintervall", service)
+			self.assertNotIn("sepa_collection_schedule_service", service)

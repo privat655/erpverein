@@ -35,5 +35,6 @@ doc_events = {
 }
 
 scheduler_events = {
+    "daily": ["erpverein.services.sepa_collection_schedule_service.refresh_collection_schedule_projections"],
     "hourly": ["erpverein.services.billing_job_service.reconcile_stale_billing_jobs"],
 }

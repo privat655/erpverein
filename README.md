@@ -4,9 +4,9 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 ## Zielumgebung
 
-- Frappe: `v16.25.0`
-- ERPNext: `v16.26.2`
-- App: `erpverein` `0.1.5`
+- Frappe: `v16.27.1`
+- ERPNext: `v16.28.0`
+- App: `erpverein` `0.1.6`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
 
 ## Rename-Reset
@@ -31,22 +31,13 @@ bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --light
 bench --site <site> run-tests --app erpverein
 ```
 
-## Normales Update
+## Vorproduktions-Reset
 
-Dieser Ablauf gilt nur fuer Sites, die bereits sauber mit `erpverein` installiert wurden. Fuer normale Updates nicht deinstallieren und neu installieren.
-
-```bash
-bench --site <site> backup --with-files
-bench --site <site> migrate
-bench --site <site> run-tests --module erpnext.tests.bootstrap_test_data --lightmode
-bench --site <site> run-tests --app erpverein
-```
-
-Bei produktiven Image-Deployments vor `bench migrate` ein Backup mit Dateien erstellen und `site_config.json` inklusive `encryption_key` sichern.
+Der aktuelle Stand ist eine patchfreie Vorproduktionsbasis. Bestehende Entwicklungs-Sites werden nicht aktualisiert, sondern vollstaendig neu erstellt. Erst nach Festlegung der Produktionsbasis werden normale Update-Pfade mit unveraenderlicher Migrationshistorie unterstuetzt.
 
 ## Releases und Images
 
-Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand zum Beispiel `erpverein-v16.26.2-0.1.5`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
+Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand `erpverein-v16.28.0-0.1.6`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
 
 Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Vor dem Push erstellt er mit den gepinnten Frappe-, ERPNext-, `frappe_docker`-, MariaDB- und Redis-Komponenten eine saubere Site, installiert zuerst ERPNext und dann `erpverein` und fuehrt diese Befehle im gebauten Image aus:
 

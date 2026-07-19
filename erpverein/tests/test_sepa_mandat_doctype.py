@@ -5,6 +5,7 @@ from frappe.utils import get_datetime
 from frappe.tests import IntegrationTestCase
 
 from erpverein.custom_fields import BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME, sync_custom_fields
+from erpverein.services.sepa_collection_schedule_service import refresh_collection_schedule_projections
 from erpverein.services.sepa_mandat_service import activate_replacement_mandate
 
 
@@ -21,6 +22,21 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         self.assertEqual(meta.get_field("bezugs_doctype").label, "Referenztyp")
         self.assertEqual(meta.get_field("customer").label, "Kunde")
         self.assertEqual(meta.get_field("bank_account").label, "Bankkonto")
+        self.assertEqual(meta.get_field("einzugsintervall").label, "Einzugsintervall")
+        self.assertEqual(meta.get_field("einzugstermine").options, "SEPA Einzugstermin")
+        self.assertTrue(meta.get_field("naechster_einzugstermin").in_list_view)
+        self.assertTrue(meta.get_field("planungsstatus").in_list_view)
+
+    def test_active_mandat_requires_complete_collection_schedule(self):
+        customer = make_customer("SEPA Schedule Required")
+        mitglied = make_mitglied(customer=customer.name)
+        mandate = make_sepa_mandat(mitglied)
+        mandate.einzugsintervall = None
+        mandate.einzugsplan_ab = None
+        mandate.set("einzugstermine", [])
+
+        with self.assertRaises(frappe.ValidationError):
+            mandate.insert(ignore_permissions=True)
 
     def test_active_membership_mandat_syncs_member_and_bank_account(self):
         customer = make_customer("SEPA Sync")
@@ -144,7 +160,7 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         self.assertEqual(get_datetime(account.modified), get_datetime(before["modified"]))
         self.assertFalse(account.get(BANK_ACCOUNT_SYNC_STATE_FIELDNAME))
 
-    def test_incompatible_unmanaged_bank_account_is_not_adopted(self):
+    def test_incompatible_unmanaged_bank_account_is_not_modified(self):
         customer = make_customer("SEPA Incompatible Account")
         mitglied = make_mitglied(customer=customer.name)
         bank = make_bank()
@@ -152,16 +168,15 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         iban = make_german_iban()
         manual = make_bank_account(customer, other_bank, iban, managed=0)
 
-        mandate = make_sepa_mandat(mitglied, bank=bank.name, iban=iban)
-        with self.assertRaises(frappe.ValidationError):
-            mandate.insert(ignore_permissions=True)
+        mandate = make_sepa_mandat(mitglied, bank=bank.name, iban=iban).insert(ignore_permissions=True)
         manual.reload()
 
         self.assertEqual(manual.bank, other_bank.name)
         self.assertEqual(manual.get(BANK_ACCOUNT_MANAGED_FIELDNAME), 0)
+        self.assertNotEqual(mandate.bank_account, manual.name)
         self.assertEqual(
             frappe.db.count("Bank Account", {"party_type": "Customer", "party": customer.name, "iban": iban}),
-            1,
+            2,
         )
 
     def test_manual_edit_to_managed_bank_account_blocks_sync(self):
@@ -250,14 +265,85 @@ class TestSEPAMandatDoctype(IntegrationTestCase):
         with self.assertRaises(frappe.ValidationError):
             mandate.save(ignore_permissions=True)
 
-    def test_active_mandate_identity_is_immutable(self):
-        customer = make_customer("SEPA Immutable")
+    def test_active_mandate_identity_bank_and_schedule_are_editable(self):
+        customer = make_customer("SEPA Editable")
         mitglied = make_mitglied(customer=customer.name)
         mandate = make_sepa_mandat(mitglied).insert(ignore_permissions=True)
-        mandate.iban = make_german_iban()
+        original_name = mandate.name
+        original_bank_account = mandate.bank_account
+        new_reference = f"MR-{frappe.generate_hash(length=10)}"
+        new_iban = make_german_iban()
+        mandate.mandatsreferenz = new_reference
+        mandate.iban = new_iban
+        mandate.einzugsintervall = "Monatlich"
+        mandate.monatstag = 31
+        mandate.set("einzugstermine", [])
 
-        with self.assertRaises(frappe.ValidationError):
-            mandate.save(ignore_permissions=True)
+        mandate.save(ignore_permissions=True, ignore_version=False)
+        mandate.reload()
+
+        self.assertEqual(mandate.name, original_name)
+        self.assertEqual(mandate.mandatsreferenz, new_reference)
+        self.assertEqual(mandate.iban, new_iban)
+        self.assertEqual(mandate.einzugsintervall, "Monatlich")
+        self.assertEqual(mandate.monatstag, 31)
+        self.assertNotEqual(mandate.bank_account, original_bank_account)
+        self.assertEqual(frappe.db.get_value("Bank Account", mandate.bank_account, "iban"), new_iban)
+        self.assertEqual(frappe.db.get_value("Bank Account", original_bank_account, "disabled"), 1)
+        self.assertTrue(frappe.db.exists("Version", {"ref_doctype": "SEPA Mandat", "docname": mandate.name}))
+
+    def test_shared_managed_bank_account_is_split_for_bank_correction(self):
+        customer = make_customer("SEPA Shared Account")
+        mitglied = make_mitglied(customer=customer.name)
+        mieter = make_mieter(customer=customer.name)
+        bank = make_bank()
+        shared_iban = make_german_iban()
+        membership = make_sepa_mandat(mitglied, bank=bank.name, iban=shared_iban).insert(ignore_permissions=True)
+        rental = make_rent_sepa_mandat(mieter, bank=bank.name, iban=shared_iban).insert(ignore_permissions=True)
+
+        self.assertEqual(rental.bank_account, membership.bank_account)
+
+        corrected_iban = make_german_iban()
+        rental.iban = corrected_iban
+        rental.save(ignore_permissions=True)
+        rental.reload()
+        membership.reload()
+
+        self.assertNotEqual(rental.bank_account, membership.bank_account)
+        self.assertEqual(frappe.db.get_value("Bank Account", rental.bank_account, "iban"), corrected_iban)
+        self.assertEqual(frappe.db.get_value("Bank Account", membership.bank_account, "iban"), shared_iban)
+
+    def test_adding_bic_replaces_managed_bank_account(self):
+        customer = make_customer("SEPA BIC Correction")
+        mitglied = make_mitglied(customer=customer.name)
+        mandate = make_sepa_mandat(mitglied, bic=None).insert(ignore_permissions=True)
+        original_bank_account = mandate.bank_account
+
+        mandate.bic = "COBADEFFXXX"
+        mandate.save(ignore_permissions=True)
+        mandate.reload()
+
+        self.assertNotEqual(mandate.bank_account, original_bank_account)
+        self.assertEqual(frappe.db.get_value("Bank Account", mandate.bank_account, "branch_code"), "COBADEFFXXX")
+        self.assertEqual(frappe.db.get_value("Bank Account", original_bank_account, "disabled"), 1)
+
+    def test_projection_refresh_does_not_create_financial_documents(self):
+        customer = make_customer("SEPA Projection Only")
+        mitglied = make_mitglied(customer=customer.name)
+        mandate = make_sepa_mandat(mitglied).insert(ignore_permissions=True)
+        before = {
+            doctype: frappe.db.count(doctype)
+            for doctype in ("Subscription", "Sales Invoice", "Payment Entry")
+        }
+
+        refresh_collection_schedule_projections()
+        mandate.reload()
+
+        self.assertTrue(mandate.naechster_einzugstermin)
+        self.assertEqual(
+            {doctype: frappe.db.count(doctype) for doctype in before},
+            before,
+        )
 
     def test_draft_cannot_disable_forged_managed_bank_account(self):
         first_customer = make_customer("SEPA Managed Owner")
@@ -350,7 +436,9 @@ def make_sepa_mandat(mitglied, bank: str | None = None, **overrides):
         "bezugs_doctype": "Mitglied",
         "bezugs_name": mitglied.name,
         "mandatsdatum": "2026-01-01",
-        "einzugsmodus": "Jaehrlich",
+        "einzugsintervall": "Jaehrlich",
+        "einzugsplan_ab": "2026-01-01",
+        "einzugstermine": [{"monat": 3, "tag": 31}],
         "kontoinhaber": mitglied.mitglied_name,
         "iban": make_german_iban(),
         "bic": "COBADEFFXXX",
@@ -370,7 +458,9 @@ def make_rent_sepa_mandat(mieter, bank: str | None = None, **overrides):
         "bezugs_doctype": "Mieter",
         "bezugs_name": mieter.name,
         "mandatsdatum": "2026-01-01",
-        "einzugsmodus": "Jaehrlich",
+        "einzugsintervall": "Jaehrlich",
+        "einzugsplan_ab": "2026-01-01",
+        "einzugstermine": [{"monat": 3, "tag": 31}],
         "kontoinhaber": mieter.mieter_name,
         "iban": make_german_iban(),
         "bic": "COBADEFFXXX",
