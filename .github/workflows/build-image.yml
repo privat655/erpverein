@@ -24,7 +24,7 @@ permissions:
 
 env:
   DEFAULT_ERP_VERSION: v16.28.0
-  FRAPPE_VERSION: v16.27.1
+  FRAPPE_VERSION: v16.27.0
   FRAPPE_DOCKER_REF: d4a310089f5d6fc38ed1317b898d75b9c74901db
   MARIADB_IMAGE: mariadb:11.8.5@sha256:345fa26d595e8c7fe298e0c4098ed400356f502458769c8902229b3437d6da2b
   REDIS_IMAGE: redis:6.2.19-alpine@sha256:7fe72c486b910f6b1a9769c937dad5d63648ddee82e056f47417542dd40825bb
@@ -61,7 +61,7 @@ jobs:
 
           if [[ "$EVENT_NAME" == "push" && "$REF_TYPE" == "tag" ]]; then
             if [[ ! "$REF_NAME" =~ ^erpverein-v(16\.[0-9]+\.[0-9]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-              echo "Release tag must look like erpverein-v16.28.0-0.1.6" >&2
+              echo "Release tag must look like erpverein-v16.28.0-0.1.7" >&2
               exit 1
             fi
 

@@ -2,7 +2,7 @@
 
 ## Runtime And Commands
 
-- This is a Frappe/ERPNext v16 app, not a standalone Python service. `pyproject.toml` allows Frappe and ERPNext `>=16,<17`; the image workflow currently pins Frappe `v16.27.1` and ERPNext `v16.28.0`.
+- This is a Frappe/ERPNext v16 app, not a standalone Python service. `pyproject.toml` allows Frappe and ERPNext `>=16,<17`; the image workflow currently pins Frappe `v16.27.0` and ERPNext `v16.28.0`.
 - Run Frappe commands from a Bench where `erpverein` is installed. There is no repository-local lint, formatter, typecheck, or standalone test configuration.
 - The rename to package/app identity `erpverein` is an identity reset. Only clean-site installation is supported; old development sites from before the rename are explicitly unsupported and must not be migrated or treated as an update path.
 - Fresh-site verification order:
@@ -52,7 +52,7 @@ bench --site <site> run-tests --app erpverein
 - Use `frappe.tests.UnitTestCase` for pure helpers and `IntegrationTestCase` for DB-backed DocType, permission, patch, and ERPNext integration behavior.
 - Changes to standard-DocType extensions need Custom Field metadata tests; reciprocal links need tests from both sides; patches need first-run and rerun tests.
 - `.github/workflows/build-image.yml` builds and loads the exact custom `linux/amd64` image, creates a clean site with pinned components, installs ERPNext and `erpverein`, migrates, and runs `bench --site ci.localhost run-tests --app erpverein` before any push. The same locally verified image is then pushed to GHCR.
-- Release/image tags must match `erpverein-v<erpnext-version>-<app-version>`, for example `erpverein-v16.28.0-0.1.6`. Tag pushes derive the ERPNext tag and app ref from that release tag while keeping Frappe and `frappe_docker` pinned; manual image tags are sanitized.
+- Release/image tags must match `erpverein-v<erpnext-version>-<app-version>`, for example `erpverein-v16.28.0-0.1.7`. Tag pushes derive the ERPNext tag and app ref from that release tag while keeping Frappe and `frappe_docker` pinned; manual image tags are sanitized.
 - Before tagging, reconcile the app version in `pyproject.toml`, `erpverein/__init__.py`, and `README.md`. The workflow rejects a mismatch between either version source and the release tag.
 - The published image name is `ghcr.io/<owner>/erpverein`; no image is published unless the clean-site install, migrate, and complete app test gate succeeds.
 - Production uses one custom GHCR image across backend, frontend, websocket, scheduler, and both queue workers. Deploy the same image tag everywhere, then migrate and smoke-test Customer links, mandates, both billing runs, scheduler, and queues.
