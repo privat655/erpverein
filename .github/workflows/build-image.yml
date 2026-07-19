@@ -61,7 +61,7 @@ jobs:
 
           if [[ "$EVENT_NAME" == "push" && "$REF_TYPE" == "tag" ]]; then
             if [[ ! "$REF_NAME" =~ ^erpverein-v(16\.[0-9]+\.[0-9]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-              echo "Release tag must look like erpverein-v16.28.0-0.1.7" >&2
+              echo "Release tag must look like erpverein-v16.28.0-0.1.8" >&2
               exit 1
             fi
 

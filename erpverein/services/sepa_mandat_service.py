@@ -367,7 +367,17 @@ def ensure_bank_account_is_compatible(doc, bank_account) -> None:
 
 
 def get_desired_bank_account_fields(doc) -> dict:
-    account_suffix = hashlib.sha256(cstr(doc.mandatsreferenz).encode("utf-8")).hexdigest()[:16]
+    account_identity = "|".join(
+        cstr(value)
+        for value in (
+            doc.mandatsreferenz,
+            doc.customer,
+            normalize_iban(doc.iban),
+            doc.bank,
+            normalize_bic(doc.bic),
+        )
+    )
+    account_suffix = hashlib.sha256(account_identity.encode("utf-8")).hexdigest()[:16]
     account_holder = cstr(doc.kontoinhaber or doc.customer)[:80]
     return {
         "account_name": f"{account_holder} ({account_suffix})",
