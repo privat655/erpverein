@@ -49,3 +49,5 @@ bench --site ci.localhost run-tests --app erpverein
 ```
 
 Nur ein erfolgreich verifiziertes Image wird nach GHCR gepusht. Manuelle Workflow-Laeufe akzeptieren einen App-Git-Ref und einen optionalen Image-Tag; der Image-Tag wird auf Docker-kompatible Zeichen normalisiert.
+
+test
