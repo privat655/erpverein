@@ -1091,6 +1091,8 @@ Der aktuell untersuchte Bankexport enthält abstrahiert:
 
 Keine produktiven Beispielwerte werden in Code, Tests oder Dokumentation übernommen.
 
+> **Hinweis zum Erstimport:** Die in diesem Abschnitt beschriebenen Umsatzimportfelder basieren auf dem derzeit vorliegenden Bankexport und dienen zunächst der historischen Erstübernahme. Sie sind keine endgültige Schnittstellendefinition. Das finale Quellformat, die verfügbaren Spalten und das Feldmapping werden angepasst, sobald der Export für den laufenden Bankbetrieb feststeht. Der Importer muss deshalb profil- und versionsbasiert aufgebaut werden und darf nicht fest an die Struktur des Erstimports gekoppelt sein.
+
 ### 14.2 Technische Besonderheiten
 
 Das Importprofil muss unterstützen:
@@ -1810,7 +1812,7 @@ Nicht in Git, Issues, Pull Requests, Testfixtures, Screenshots oder Dokumentatio
 
 - ausschließlich private Frappe Files,
 - Zugriff nur für definierte Buchhaltungs- und SEPA-Rollen,
-- keine öffentliche File URL,
+- keine öffentliche Date URL,
 - Originaldatei unverändert erhalten,
 - Hash zur Integritätsprüfung,
 - definierte Aufbewahrungsfrist.
