@@ -4,9 +4,9 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 ## Zielumgebung
 
-- Frappe: `v16.27.0`
-- ERPNext: `v16.28.0`
-- App: `erpverein` `0.1.10`
+- Frappe: `v16.54.0`
+- ERPNext: `v16.53.0`
+- App: `erpverein` `0.1.11`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
 
 ## Rename-Reset
@@ -37,9 +37,11 @@ Der aktuelle Stand ist eine patchfreie Vorproduktionsbasis. Bestehende Entwicklu
 
 ## Releases und Images
 
-Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand `erpverein-v16.28.0-0.1.10`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
+Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand `erpverein-v16.53.0-0.1.11`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
 
-Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Vor dem Push erstellt er mit den gepinnten Frappe-, ERPNext-, `frappe_docker`-, MariaDB- und Redis-Komponenten eine saubere Site, installiert zuerst ERPNext und dann `erpverein` und fuehrt diese Befehle im gebauten Image aus:
+Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Der Build verwendet `images/custom/Containerfile` aus dem gepinnten `frappe_docker`-Stand mit Python 3.14 und Node.js 24. Dadurch ist kein separat veroeffentlichtes `frappe/build:<frappe-version>`-Image erforderlich.
+
+Vor dem Push erstellt er mit den gepinnten Frappe-, ERPNext-, `frappe_docker`-, MariaDB- und Redis-Komponenten eine saubere Site, installiert zuerst ERPNext und dann `erpverein` und fuehrt diese Befehle im gebauten Image aus:
 
 ```bash
 bench --site ci.localhost install-app erpverein
@@ -49,5 +51,13 @@ bench --site ci.localhost run-tests --app erpverein
 ```
 
 Nur ein erfolgreich verifiziertes Image wird nach GHCR gepusht. Manuelle Workflow-Laeufe akzeptieren einen App-Git-Ref und einen optionalen Image-Tag; der Image-Tag wird auf Docker-kompatible Zeichen normalisiert.
+
+Nach den App-Tests prueft der Workflow die tatsaechlich installierten Frappe-/ERPNext-Versionen, einen Backend-Ping und den Socket.IO-Handshake im gebauten Image.
+
+### Deployment auf host01
+
+Backend, Frontend, Websocket, Scheduler und beide Queue-Worker verwenden denselben neuen Image-Tag. Fuer die patchfreie Vorproduktion wird eine saubere Site neu erstellt; vorhandene erhaltenswerte Daten muessen vor einem Reset gesichert werden.
+
+Der Websocket-Dienst startet weiterhin mit `node /home/frappe/frappe-bench/apps/frappe/socketio.js`. Der Frontend-Upstream zeigt auf diesen Dienst an Port `9000`; `socketio_port` wird entsprechend auf `9000` gesetzt. Die Quadlet-Dateien auf `host01` werden ausserhalb dieses Repositorys verwaltet.
 
 test

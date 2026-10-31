@@ -3,7 +3,7 @@
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
 **Version:** 0.1  
-**Geltungsbereich:** ERPverein auf Frappe `v16.27.0` und ERPNext `v16.28.0`  
+**Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
 
@@ -280,9 +280,9 @@ Der einer konkreten Rechnung zugeordnete Teilbetrag eines Payment Entry oder Jou
 
 Der aktuelle Repository-Stand zielt auf:
 
-- Frappe `v16.27.0`,
-- ERPNext `v16.28.0`,
-- ERPverein `0.1.10`.
+- Frappe `v16.54.0`,
+- ERPNext `v16.53.0`,
+- ERPverein `0.1.11`.
 
 Die App setzt ERPNext als erforderliche App voraus.
 
