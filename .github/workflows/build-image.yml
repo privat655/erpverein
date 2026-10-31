@@ -61,7 +61,7 @@ jobs:
 
           if [[ "$EVENT_NAME" == "push" && "$REF_TYPE" == "tag" ]]; then
             if [[ ! "$REF_NAME" =~ ^erpverein-v(16\.[0-9]+\.[0-9]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-              echo "Release tag must look like erpverein-v16.53.0-0.1.11" >&2
+              echo "Release tag must look like erpverein-v16.53.0-0.1.12" >&2
               exit 1
             fi
 
@@ -195,7 +195,7 @@ jobs:
             --volume "$SITES_VOLUME:/home/frappe/frappe-bench/sites" \
             --env EXPECTED_FRAPPE_VERSION="$FRAPPE_VERSION" \
             --env EXPECTED_ERP_VERSION="$ERP_VERSION" \
-            "$IMAGE_REF" bash -lc '
+            "$IMAGE_REF" bash -c '
               set -euo pipefail
               ls -1 apps > sites/apps.txt
               bench set-config -g db_host db
@@ -228,11 +228,11 @@ jobs:
           assert frappe.__version__ == os.environ["EXPECTED_FRAPPE_VERSION"].removeprefix("v")
           assert erpnext.__version__ == os.environ["EXPECTED_ERP_VERSION"].removeprefix("v")
 
-          processes = [
-              subprocess.Popen(["start.sh"]),
-              subprocess.Popen(["node", "apps/frappe/socketio.js"]),
-          ]
+          processes = []
           try:
+              processes.append(subprocess.Popen(["start.sh"]))
+              processes.append(subprocess.Popen(["node", "apps/frappe/socketio.js"]))
+
               def wait_for_response(url):
                   for attempt in range(60):
                       if any(process.poll() is not None for process in processes):

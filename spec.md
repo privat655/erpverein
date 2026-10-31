@@ -282,7 +282,7 @@ Der aktuelle Repository-Stand zielt auf:
 
 - Frappe `v16.54.0`,
 - ERPNext `v16.53.0`,
-- ERPverein `0.1.11`.
+- ERPverein `0.1.12`.
 
 Die App setzt ERPNext als erforderliche App voraus.
 
