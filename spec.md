@@ -2218,8 +2218,9 @@ Status: freigegeben am 01.11.2026 mit Variante A.
 
 ### Phase 1 – Zahlungsplan und Vorabankündigung (Ziel: Release bis 11.12.2026)
 
-- Custom Fields an `Sales Invoice`,
+- Custom Fields an `Sales Invoice` und `Payment Schedule`,
 - Stammdaten `Mode of Payment` und `Payment Term`,
+- `SEPA Exportprofil` (vorgezogen aus Phase 2, weil Druckformat und Vorabankündigung Gläubiger-ID und Frist brauchen),
 - Erzeugung des Zahlungsplans aus dem Mandatsplan,
 - „Zahlungsplan bearbeiten“, „Zahlungsplan aus Mandat neu erzeugen“ und Nachtrag mit Vorschau,
 - app-eigenes Druckformat nach DIN 5008 mit Zahlungsplan,
@@ -2231,7 +2232,7 @@ Die Subscriptions erzeugen die Rechnungen 2027 am oder nach dem 01.01.2027. Das 
 
 ### Phase 2 – Einzugslauf und pain.008 (Ziel: Banktest bis 15.01.2027)
 
-- `SEPA Exportprofil`, `SEPA Einzugslauf` und `SEPA Einzugsposition`,
+- `SEPA Einzugslauf` und `SEPA Einzugsposition`,
 - Vorschau und idempotente Erzeugung,
 - `pain.008.001.08`-Export mit XSD-Prüfung und privater Datei,
 - Navigation in beiden Workspace-Dateien,
@@ -2434,12 +2435,12 @@ Produktive Quelldaten sind bewusst nicht Bestandteil dieser Spezifikation.
 
 ### 31.2 Technische Umsetzung beim Speichern
 
-- Ein Hook `before_validate` an `Sales Invoice` (`doc_events`) setzt den Plan. Frappe ruft ihn beim Anlegen und beim Buchen vor `validate` auf.
-- Der Hook berechnet zuerst die Summen der Rechnung und danach die Zeilen.
+- Ein Hook `validate` an `Sales Invoice` (`doc_events`) setzt den Plan. Frappe ruft ihn beim Anlegen und beim Buchen nach dem `validate` von ERPNext auf. Erst dann stehen Summen, Preisregeln und Anzahlungen fest. (Präzisierung von P1 in Phase 1: `before_validate` liefe vor der Summenberechnung.)
 - Zeilen mit festem Betrag haben `invoice_portion = 0` sowie gesetzte Werte für `payment_amount` und `outstanding`. ERPNext rechnet nur Zeilen mit `invoice_portion` neu und setzt nur dort `outstanding`.
 - Der Hook leert `payment_terms_template`. Sonst prüft ERPNext die Fälligkeit gegen die Vorlage.
-- Die Standardzeile aus `Subscription.create_invoice()` entsteht nur bei `days_until_due > 0`. Der Hook erkennt sie so: neue Rechnung, `subscription` gesetzt, genau eine Zeile ohne Zahlungsbedingung und ohne Zahlungsweise, `invoice_portion = 100`, Fälligkeit gleich Rechnungsdatum plus `days_until_due`. Diese Zeile darf er ersetzen.
-- Danach prüft ERPNext selbst: keine doppelte Fälligkeit, Summe gleich Rechnungsbetrag (Toleranz 0,10), Fälligkeit der Rechnung gleich späteste Zeile und nicht vor dem Rechnungsdatum.
+- Beim ersten Lauf ersetzt der Hook die Zeilen, die ERPNext angelegt hat (Standardzeile oder Zeile aus `Subscription.create_invoice()` bei `days_until_due > 0`). Bei jedem weiteren Lauf vergleicht er den Fingerprint. Weicht er ab, gilt der Plan als `Bearbeitet` und bleibt.
+- Nach dem Ersetzen ruft der Hook die ERPNext-Prüfungen selbst auf: keine doppelte Fälligkeit, Summe gleich Rechnungsbetrag (Toleranz 0,10), Fälligkeit der Rechnung gleich späteste Zeile und nicht vor dem Rechnungsdatum.
+- Die Restzeile bekommt die Standardfälligkeit: Rechnungsdatum plus `days_until_due` der Subscription, sonst die Fälligkeit aus der Zahlungsbedingungsvorlage des Customers, sonst das Rechnungsdatum.
 
 ### 31.3 Bearbeitung nach dem Buchen
 
@@ -2542,7 +2543,7 @@ Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Di
 
 | Nr. | Frage | Ergebnis |
 |---|---|---|
-| P1 | Zahlungsplan bei Subscription-Rechnungen | Hook `before_validate` an `Sales Invoice` (Kapitel 31.2). |
+| P1 | Zahlungsplan bei Subscription-Rechnungen | Hook an `Sales Invoice`; umgesetzt als `validate`-Hook nach dem ERPNext-`validate` (Kapitel 31.2). |
 | P2 | Zahlungsplan einer gebuchten Rechnung ändern | Mit eigener Prüfung möglich (Kapitel 31.3). `GL Entry.due_date` und `Payment Ledger Entry.due_date` bleiben auf dem Stand vom Buchen. |
 | P3 | Zahlungsbedingungen | Eindeutige Zahlungsbedingung je Zeile; 60 app-eigene Einträge (Kapitel 31.5). |
 | P4 | Zahlungen erzeugen, buchen, abgleichen | Mit den Rechten des Benutzers; Abgleich über `reconcile_vouchers` mit Schreibrecht auf Bankumsatz und Beleg; Rollen in Kapitel 20.6. |

@@ -13,6 +13,18 @@ SUBSCRIPTION_GENERATION_PAYLOAD_FIELDNAME = "erpverein_generation_payload"
 SUBSCRIPTION_RUN_DOCTYPE_FIELDNAME = "erpverein_generation_run_doctype"
 SUBSCRIPTION_RUN_FIELDNAME = "erpverein_generation_run"
 SUBSCRIPTION_SOURCES_FIELDNAME = "erpverein_sources"
+SALES_INVOICE_SECTION_FIELDNAME = "erpverein_payment_schedule_section"
+SALES_INVOICE_SCHEDULE_ORIGIN_FIELDNAME = "erpverein_schedule_origin"
+SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME = "erpverein_prenotification_status"
+SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME = "erpverein_prenotification_sent_at"
+SALES_INVOICE_SCHEDULE_NOTE_FIELDNAME = "erpverein_schedule_note"
+SALES_INVOICE_COLUMN_FIELDNAME = "erpverein_payment_schedule_column"
+SALES_INVOICE_BILLING_KIND_FIELDNAME = "erpverein_billing_kind"
+SALES_INVOICE_PAYER_DOCTYPE_FIELDNAME = "erpverein_payer_doctype"
+SALES_INVOICE_PAYER_FIELDNAME = "erpverein_payer"
+SALES_INVOICE_SEPA_MANDATE_FIELDNAME = "erpverein_sepa_mandate"
+SALES_INVOICE_SCHEDULE_FINGERPRINT_FIELDNAME = "erpverein_schedule_fingerprint"
+PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME = "erpverein_changed_at"
 
 
 def get_custom_fields() -> dict:
@@ -143,6 +155,123 @@ def get_custom_fields() -> dict:
                 "read_only": 1,
             },
         ],
+        "Sales Invoice": [
+            {
+                "fieldname": SALES_INVOICE_SECTION_FIELDNAME,
+                "label": "ERPverein",
+                "fieldtype": "Section Break",
+                "insert_after": "payment_schedule",
+            },
+            {
+                "fieldname": SALES_INVOICE_SCHEDULE_ORIGIN_FIELDNAME,
+                "label": "Herkunft des Zahlungsplans",
+                "fieldtype": "Select",
+                "options": "\nMandat\nStandard\nBearbeitet",
+                "insert_after": SALES_INVOICE_SECTION_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME,
+                "label": "Vorabankuendigung",
+                "fieldtype": "Select",
+                "options": "\nNicht erforderlich\nAusstehend\nVersendet\nErneut senden\nManuell bestaetigt",
+                "insert_after": SALES_INVOICE_SCHEDULE_ORIGIN_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME,
+                "label": "Vorabankuendigung versendet am",
+                "fieldtype": "Datetime",
+                "insert_after": SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_SCHEDULE_NOTE_FIELDNAME,
+                "label": "Hinweis zum Zahlungsplan",
+                "fieldtype": "Small Text",
+                "insert_after": SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_COLUMN_FIELDNAME,
+                "fieldtype": "Column Break",
+                "insert_after": SALES_INVOICE_SCHEDULE_NOTE_FIELDNAME,
+            },
+            {
+                "fieldname": SALES_INVOICE_BILLING_KIND_FIELDNAME,
+                "label": "ERPverein Abrechnungsart",
+                "fieldtype": "Select",
+                "options": "\nMitgliedsbeitrag\nMiete",
+                "insert_after": SALES_INVOICE_COLUMN_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_PAYER_DOCTYPE_FIELDNAME,
+                "label": "Zahlertyp",
+                "fieldtype": "Link",
+                "options": "DocType",
+                "insert_after": SALES_INVOICE_BILLING_KIND_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_PAYER_FIELDNAME,
+                "label": "Zahler",
+                "fieldtype": "Dynamic Link",
+                "options": SALES_INVOICE_PAYER_DOCTYPE_FIELDNAME,
+                "insert_after": SALES_INVOICE_PAYER_DOCTYPE_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+                "search_index": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_SEPA_MANDATE_FIELDNAME,
+                "label": "SEPA-Mandat",
+                "fieldtype": "Link",
+                "options": "SEPA Mandat",
+                "insert_after": SALES_INVOICE_PAYER_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+            {
+                "fieldname": SALES_INVOICE_SCHEDULE_FINGERPRINT_FIELDNAME,
+                "label": "Zahlungsplan-Fingerprint",
+                "fieldtype": "Data",
+                "insert_after": SALES_INVOICE_SEPA_MANDATE_FIELDNAME,
+                "hidden": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+        ],
+        "Payment Schedule": [
+            {
+                "fieldname": PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME,
+                "label": "ERPverein geaendert am",
+                "fieldtype": "Datetime",
+                "insert_after": "mode_of_payment",
+                "hidden": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "print_hide": 1,
+            },
+        ],
     }
 
 
@@ -164,5 +293,19 @@ def remove_custom_fields() -> None:
                 SUBSCRIPTION_RUN_FIELDNAME,
                 SUBSCRIPTION_SOURCES_FIELDNAME,
             ],
+            "Sales Invoice": [
+                SALES_INVOICE_SECTION_FIELDNAME,
+                SALES_INVOICE_SCHEDULE_ORIGIN_FIELDNAME,
+                SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME,
+                SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME,
+                SALES_INVOICE_SCHEDULE_NOTE_FIELDNAME,
+                SALES_INVOICE_COLUMN_FIELDNAME,
+                SALES_INVOICE_BILLING_KIND_FIELDNAME,
+                SALES_INVOICE_PAYER_DOCTYPE_FIELDNAME,
+                SALES_INVOICE_PAYER_FIELDNAME,
+                SALES_INVOICE_SEPA_MANDATE_FIELDNAME,
+                SALES_INVOICE_SCHEDULE_FINGERPRINT_FIELDNAME,
+            ],
+            "Payment Schedule": [PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME],
         }
     )

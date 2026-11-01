@@ -5,3 +5,8 @@ from erpverein.setup_data import sync_setup_data
 def after_install() -> None:
     sync_custom_fields()
     sync_setup_data()
+
+
+def after_migrate() -> None:
+    sync_custom_fields()
+    sync_setup_data()

@@ -1,0 +1,227 @@
+{
+ "actions": [],
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "field:profile_name",
+ "creation": "2026-11-01 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_section",
+  "profile_name",
+  "active",
+  "company",
+  "bank_account",
+  "profile_column_break",
+  "creditor_identifier",
+  "scheme",
+  "export_format",
+  "currency",
+  "collection_section",
+  "go_live_date",
+  "prenotification_days",
+  "lead_time_business_days",
+  "collection_column_break",
+  "batch_booking_default",
+  "settlement_tolerance_days",
+  "max_positions_per_file",
+  "texts_section",
+  "default_purpose_template",
+  "default_fee_account",
+  "texts_column_break",
+  "notes",
+  "profile_version"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_section",
+   "fieldtype": "Section Break",
+   "label": "Exportprofil"
+  },
+  {
+   "fieldname": "profile_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Profilname",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Aktiv"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Unternehmen",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "description": "Firmen-Bankkonto mit Hauptbuchkonto, auf das die Lastschriften gutgeschrieben werden.",
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Vereinskonto",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "profile_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "SEPA-Glaeubiger-Identifikationsnummer. Sie steht nur auf der Site, nie in Git.",
+   "fieldname": "creditor_identifier",
+   "fieldtype": "Data",
+   "label": "Glaeubiger-ID",
+   "reqd": 1
+  },
+  {
+   "default": "CORE",
+   "fieldname": "scheme",
+   "fieldtype": "Select",
+   "label": "Verfahren",
+   "options": "CORE",
+   "reqd": 1
+  },
+  {
+   "default": "pain.008.001.08",
+   "fieldname": "export_format",
+   "fieldtype": "Select",
+   "label": "Exportformat",
+   "options": "pain.008.001.08",
+   "reqd": 1
+  },
+  {
+   "default": "EUR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Waehrung",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "collection_section",
+   "fieldtype": "Section Break",
+   "label": "Fristen und Einzug"
+  },
+  {
+   "description": "Keine Einzugsposition fuer eine Faelligkeit vor diesem Tag.",
+   "fieldname": "go_live_date",
+   "fieldtype": "Date",
+   "label": "Go-live-Stichtag",
+   "reqd": 1
+  },
+  {
+   "default": "14",
+   "fieldname": "prenotification_days",
+   "fieldtype": "Int",
+   "label": "Frist der Vorabankuendigung (Kalendertage)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "lead_time_business_days",
+   "fieldtype": "Int",
+   "label": "Vorlauf (TARGET2-Geschaeftstage)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "collection_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "batch_booking_default",
+   "fieldtype": "Check",
+   "label": "Sammelbuchung als Standard (BtchBookg)"
+  },
+  {
+   "default": "5",
+   "fieldname": "settlement_tolerance_days",
+   "fieldtype": "Int",
+   "label": "Toleranz der Sammelgutschrift (Kalendertage)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1000",
+   "fieldname": "max_positions_per_file",
+   "fieldtype": "Int",
+   "label": "Hoechstzahl Positionen je Datei",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "texts_section",
+   "fieldtype": "Section Break",
+   "label": "Texte und Konten"
+  },
+  {
+   "default": "Rechnung {invoice}",
+   "description": "Platzhalter: {invoice}, {customer}, {source_id}, {period_from}, {period_to}, {collection_date}.",
+   "fieldname": "default_purpose_template",
+   "fieldtype": "Small Text",
+   "label": "Vorlage fuer den Verwendungszweck"
+  },
+  {
+   "fieldname": "default_fee_account",
+   "fieldtype": "Link",
+   "label": "Gebuehrenkonto",
+   "options": "Account"
+  },
+  {
+   "fieldname": "texts_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Hinweise"
+  },
+  {
+   "default": "1",
+   "fieldname": "profile_version",
+   "fieldtype": "Int",
+   "label": "Profilversion",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-11-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "SEPA Exportprofil",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "profile_name",
+ "track_changes": 1
+}

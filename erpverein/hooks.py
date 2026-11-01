@@ -8,8 +8,19 @@ app_license = "MIT"
 required_apps = ["erpnext"]
 
 after_install = "erpverein.install.after_install"
+after_migrate = "erpverein.install.after_migrate"
 before_uninstall = "erpverein.uninstall.before_uninstall"
 before_tests = "erpverein.tests.before_tests.before_tests"
+
+doctype_js = {"Sales Invoice": "public/js/sales_invoice.js"}
+doctype_list_js = {"Sales Invoice": "public/js/sales_invoice_list.js"}
+
+jinja = {
+    "methods": [
+        "erpverein.services.prenotification_service.erpverein_payment_schedule_rows",
+        "erpverein.services.prenotification_service.erpverein_payment_details",
+    ]
+}
 
 doc_events = {
     "Bank Account": {
@@ -32,9 +43,15 @@ doc_events = {
     "Subscription": {
         "validate": "erpverein.services.billing_common.validate_subscription_provenance",
     },
+    "Sales Invoice": {
+        "validate": "erpverein.services.payment_schedule_service.apply_payment_schedule",
+    },
 }
 
 scheduler_events = {
     "daily": ["erpverein.services.sepa_collection_schedule_service.refresh_collection_schedule_projections"],
-    "hourly": ["erpverein.services.billing_job_service.reconcile_stale_billing_jobs"],
+    "hourly": [
+        "erpverein.services.billing_job_service.reconcile_stale_billing_jobs",
+        "erpverein.services.prenotification_service.refresh_prenotification_status",
+    ],
 }
