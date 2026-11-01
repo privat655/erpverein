@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.1  
+**Version:** 0.2 vom 01.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -90,9 +90,9 @@ Die erste Implementierung soll ausdrücklich nicht:
 - vorhandene ERPNext-Banking-Funktionen ersetzen,
 - Rücklastschriftgebühren automatisch dem Schuldner weiterberechnen,
 - mehrere Banken oder Geschäftskonten in der ersten Ausbaustufe automatisieren,
-- oder sofort einen vollständigen `pain.008`-XML-Generator liefern.
+- oder eine Lastschriftdatei automatisch bei der Bank einreichen.
 
-Ein strukturierter SEPA-XML-Export ist als spätere Erweiterung vorgesehen. Das interne Datenmodell muss ihn ermöglichen, ohne darauf angewiesen zu sein.
+Der SEPA-XML-Export im Format `pain.008.001.08` ist Teil der ersten Ausbaustufe (ADR-013). Der Kassenwart lädt die Datei manuell in PayGate (HVB) hoch. Ein CSV- oder TSV-Export für PayGate entfällt. Weitere Formate lassen sich später über den formatneutralen Kern ergänzen (Kapitel 13.2).
 
 ---
 
@@ -148,47 +148,50 @@ Mitglied oder Mieter
 Die Lastschriftkette lautet:
 
 ```text
-aktives SEPA-Mandat
-→ Einzugsplan
+Sales Invoice mit Zahlungsplan
+→ Lastschriftzeile (aus dem Mandatsplan des aktiven SEPA-Mandats erzeugt)
 → Einzugsposition
 → Einzugslauf
-→ Bankexport
+→ pain.008-Datei
 → Kontoauszug
 → Payment Entry
 → Sales Invoice
 ```
 
-Eine Subscription erzeugt keine Lastschrift. Ein Mandat erzeugt keine Rechnung.
+Eine Subscription erzeugt keine Lastschrift. Ein Mandat erzeugt keine Rechnung. Das Mandat liefert nur Termine und Beträge für die Lastschriftzeilen des Zahlungsplans (ADR-012).
 
-### ADR-005 – Der Lastschriftbetrag kommt ausschließlich aus dem Mandatsplan
+### ADR-005 – Der Lastschriftbetrag kommt aus der Lastschriftzeile des Zahlungsplans
 
-Der Betrag einer Einzugsposition wird ausschließlich aus dem aktiven SEPA-Mandat und dessen Einzugsplan übernommen.
+Der Betrag einer Einzugsposition ist der offene Betrag einer Lastschriftzeile im Zahlungsplan der Rechnung. ERPverein erzeugt diese Zeile bei der Rechnung aus dem Mandatsplan. Danach ändert sie nur eine bewusste Bearbeitung des Zahlungsplans (Kapitel 31).
 
 Beispiel:
 
 ```text
-Rechnung:                 350 EUR
-Betrag laut Mandatsplan:  300 EUR
-bestätigte Zahlung:       300 EUR
-offener Rechnungsbetrag:   50 EUR
+Rechnung:                            350 EUR
+Mandatsplan:                         300 EUR zum 31.03.
+Zahlungsplanzeile 1 (Lastschrift):   300 EUR, fällig 31.03.
+Zahlungsplanzeile 2 (Überweisung):    50 EUR, Restzeile
+bestätigte Lastschrift:              300 EUR
+offener Rechnungsbetrag:              50 EUR
 ```
 
-Der fehlende Betrag kann später überwiesen, separat eingezogen oder nach einer Mandatsänderung bearbeitet werden.
+Ist die Summe des Mandatsplans im Leistungszeitraum größer als der Rechnungsbetrag, entsteht keine Lastschriftzeile. Der Konflikt erscheint im Arbeitsvorrat. Eine automatische Kürzung des Mandatsbetrags ist nicht zulässig.
 
-### ADR-006 – Eine Einzugsposition gehört genau einer Rechnung
+### ADR-006 – Eine Einzugsposition gehört genau einer Zahlungsplanzeile
 
 ```text
-Eine SEPA-Einzugsposition → genau eine Sales Invoice
-Eine Sales Invoice       → null bis viele SEPA-Einzugspositionen
+Eine SEPA-Einzugsposition → genau eine Zahlungsplanzeile → genau eine Sales Invoice
+Eine Zahlungsplanzeile    → höchstens eine aktive SEPA-Einzugsposition
+Eine Sales Invoice        → null bis viele SEPA-Einzugspositionen
 ```
 
-Eine Einzugsposition darf nicht auf mehrere Rechnungen aufgeteilt werden.
+Eine Einzugsposition darf nicht auf mehrere Zahlungsplanzeilen oder Rechnungen aufgeteilt werden.
 
 Eine normale Überweisung darf dagegen mehrere Rechnungen begleichen, sofern die Zahlungsbuchung fachlich und technisch zulässig ist.
 
 ### ADR-007 – Zahlungswirkung erst nach Kontoauszug
 
-Ein Bankexport, ein angenommener PayGate-Auftrag oder ein interner Status „übermittelt“ reduziert keinen offenen Rechnungsbetrag.
+Ein Bankexport, ein angenommener Bankauftrag oder ein interner Status „übermittelt“ reduziert keinen offenen Rechnungsbetrag.
 
 Erst eine bestätigte `Bank Transaction` und ein eingereichter, zugeordneter `Payment Entry` oder `Journal Entry` verändern den offenen Betrag.
 
@@ -216,6 +219,8 @@ Ausgangspunkt ist ein geprüfter Eröffnungssaldo zum Beginn des 1. Januar 2016.
 
 Der Eröffnungssaldo darf keine bereits enthaltenen Bewegungen aus 2016 doppelt erfassen.
 
+Die Historie reicht bis zum Tag vor dem Go-live-Stichtag. Sie kommt vor dem Release nach ERPNext (Kapitel 19, Phase H in Kapitel 24).
+
 ### ADR-011 – Bankdaten werden datensparsam gespeichert
 
 Originale Kontoauszüge und Bankexporte werden als private Dateien gespeichert.
@@ -227,6 +232,22 @@ Sensible Werte werden nicht unnötig in weitere DocTypes kopiert. Wo ein unverä
 - kryptografische Hashes,
 - private Exportdateien,
 - und technisch notwendige Referenzen.
+
+### ADR-012 – Der Zahlungsplan der Rechnung steuert die Lastschrift
+
+Jede Rechnung aus einer ERPverein-Subscription erhält einen Zahlungsplan in der ERPNext-Standardtabelle `payment_schedule`. Hat der Zahler die Abrechnungsart `Lastschrift`, ein aktives Mandat und einen vollständigen Mandatsplan, kommen die Zeilen aus den Einzugsterminen des Mandats. Sonst gilt der ERPNext-Standardplan mit der Zahlungsweise „Überweisung“. Der Zahlungsplan ist bearbeitbar (Kapitel 31).
+
+### ADR-013 – SEPA-XML `pain.008.001.08` und manueller Upload
+
+ERPverein erzeugt je Einzugslauf eine Datei `pain.008.001.08` nach DFÜ-Abkommen Anlage 3 (DK-TVS GBIC_5). Der Kassenwart lädt die Datei herunter, lädt sie in PayGate (HVB Corporate Portal) hoch und gibt sie dort mit TAN frei. ERPverein reicht nichts automatisch ein. Der Export bucht keine Zahlung (ADR-007).
+
+### ADR-014 – Bankumsätze kommen über AqBanking und n8n
+
+Die Banking-Webtop ruft Umsätze mit AqBanking per FinTS ab. n8n übergibt Manifest und Datei unverändert an genau eine ERPverein-API. ERPverein parst die Datei, prüft Duplikate, legt `Bank Transaction` an und gleicht deterministisch ab. n8n enthält keine Buchungslogik.
+
+### ADR-015 – Der Go-live-Stichtag trennt Historie und laufenden Betrieb
+
+Vor dem Go-live-Stichtag zieht Vereinsmeister ein. Diese Vorgänge kommen als Historie nach ERPNext (Kapitel 19). ERPverein erzeugt keine Einzugsposition für eine Fälligkeit vor dem Stichtag. Der laufende Bankimport übernimmt nur Bankumsätze ab dem Stichtag. Ziel-Stichtag ist der 01.01.2027.
 
 ---
 
@@ -271,6 +292,26 @@ Eine spätere negative Bankbewegung, durch die ein bereits gutgeschriebener Einz
 ### 5.10 Zahlungszuordnung
 
 Der einer konkreten Rechnung zugeordnete Teilbetrag eines Payment Entry oder Journal Entry.
+
+### 5.11 Zahlungsplan und Zahlungsplanzeile
+
+Der Zahlungsplan ist die ERPNext-Tabelle `payment_schedule` (`Payment Schedule`) einer Rechnung. Eine Zahlungsplanzeile hat Fälligkeit, Betrag, Zahlungsweise (`Mode of Payment`: „SEPA-Lastschrift“ oder „Überweisung“) und eine innerhalb der Rechnung eindeutige Zahlungsbedingung (`Payment Term`). Eine Lastschriftzeile ist eine Zeile mit der Zahlungsweise „SEPA-Lastschrift“.
+
+### 5.12 Mandatsplan
+
+Einzugsintervall, Termine und Beträge im `SEPA Mandat` (Tabelle `SEPA Einzugstermin` oder regelmäßiger Betrag).
+
+### 5.13 Vorabankündigung
+
+Die SEPA-Pre-Notification an den Zahler. Sie ist die Rechnung mit Zahlungsplan, versendet per E-Mail.
+
+### 5.14 Go-live-Stichtag
+
+Der erste Tag, ab dem ERPverein statt Vereinsmeister einzieht und Bankumsätze laufend importiert.
+
+### 5.15 Arbeitsvorrat
+
+Die Liste aller Fälle, die der Kassenwart prüfen muss (Kapitel 22.4).
 
 ---
 
@@ -388,16 +429,18 @@ Vorhanden sind:
 Noch nicht vorhanden sind:
 
 - eingebettete Subscription-, Rechnungs- und Zahlungsansichten in Mitglied und Mieter,
+- Zahlungsplan aus dem Mandatsplan und seine Bearbeitung,
+- Vorabankündigung per Rechnung mit Zahlungsplan,
 - Einzugsläufe und Einzugspositionen,
-- HVB-Export,
+- `pain.008.001.08`-Export,
 - End-to-End-Referenzen je Einzugsposition,
-- Kontoauszugs-Vorverarbeitung für das konkrete HVB-Format,
-- belastbarer Duplikatschutz für historische Kontoauszüge,
+- Bankimport der AqBanking-CSV über n8n,
+- belastbarer Duplikatschutz für Kontoauszüge,
 - automatische Zuordnung von Sammelgutschriften,
 - Payment-Entry-Erzeugung je Einzugsposition,
 - Selbstüberweiser-Matching,
 - Reject- und Rücklastschriftprozess,
-- historische Migration ab 2016.
+- historische Übernahme ab 2016.
 
 ---
 
@@ -410,12 +453,14 @@ flowchart TD
     C --> D[Sales Invoice]
 
     A --> E[SEPA-Mandat]
-    E --> F[Einzugsplan]
-    F --> G[SEPA-Einzugsposition]
+    E --> F[Mandatsplan]
+    D --> Z[Zahlungsplan]
+    F --> Z
+    Z --> G[SEPA-Einzugsposition]
     G --> H[SEPA-Einzugslauf]
-    H --> I[HVB-Export]
+    H --> I[pain.008-Datei, Upload bei der HVB]
 
-    J[HVB-Kontoauszug] --> K[ERPverein Bankimport]
+    J[Kontoauszug über AqBanking und n8n] --> K[ERPverein Bankimport]
     K --> L[Bank Transaction]
 
     L --> M{Buchungsart}
@@ -582,10 +627,15 @@ Vorgeschlagene Felder:
 | `bank` | Link `Bank` | ja | Hausbank |
 | `creditor_identifier` | Data | ja | SEPA-Gläubiger-ID |
 | `scheme` | Select | ja | zunächst `CORE`, später optional `B2B` |
-| `export_format` | Select | ja | zunächst `HVB CSV/TSV`, später `pain.008` |
+| `export_format` | Select | ja | `pain.008.001.08` (DK-TVS GBIC_5) |
+| `batch_booking_default` | Check | ja | Standard für `BtchBookg`, Standard `1` (Sammelbuchung) |
+| `lead_time_business_days` | Int | ja | Vorlauf in TARGET2-Geschäftstagen, CORE: 1 |
+| `prenotification_days` | Int | ja | Frist der Vorabankündigung in Kalendertagen, Standard 14 |
+| `go_live_date` | Date | ja | Go-live-Stichtag; keine Einzugsposition für eine Fälligkeit davor |
+| `settlement_tolerance_days` | Int | ja | Toleranz zwischen Einzugsdatum und Buchungsdatum der Sammelgutschrift |
 | `max_positions_per_file` | Int | ja | konfigurierbares Dateilimit |
 | `default_purpose_template` | Small Text | nein | Standard-Verwendungszweck |
-| `default_fee_account` | Link `Account` | ja | Bankgebührenkonto |
+| `default_fee_account` | Link `Account` | ja | Konto für Bank- und Rücklastschriftgebühren (68550) |
 | `currency` | Link `Currency` | ja | zunächst `EUR` |
 | `active` | Check | ja | Profil aktiv |
 | `profile_version` | Data | ja | versioniert Parser/Exporter |
@@ -595,6 +645,7 @@ Vorgeschlagene Felder:
 
 - Pro Geschäftskonto darf nur ein Profil gleicher Verfahrensart aktiv sein.
 - Die Gläubiger-ID wird nicht am einzelnen Mandat dupliziert.
+- Die Gläubiger-ID wird nur auf der Site gepflegt, nie in Git, Tests oder Dokumentation.
 - Das Dateilimit ist konfigurierbar.
 - Änderungen am Profil wirken nicht rückwirkend auf bereits exportierte Läufe.
 - Jeder Export speichert die verwendete Profilversion.
@@ -603,12 +654,12 @@ Vorgeschlagene Felder:
 
 Vor produktivem Einsatz muss geklärt und dokumentiert werden:
 
-- wie die individuelle End-to-End-Referenz über PayGate übergeben wird,
-- welche Feldlängen und Zeichensätze gelten,
-- welcher Sequenztyp akzeptiert wird,
-- welche konkrete CSV-/TSV-Struktur erwartet wird,
-- welche XML-Version gegebenenfalls unterstützt wird,
-- und wie die bankseitige Laufreferenz zurückgegeben wird.
+- ob PayGate (HVB Corporate Portal) die Datei `pain.008.001.08` annimmt,
+- ob PayGate einen Test ohne Ausführung erlaubt (zum Beispiel Upload ohne Freigabe),
+- welche Feldlängen und Zeichensätze gelten (DK-TVS GBIC_5),
+- welcher Sequenztyp akzeptiert wird (`RCUR` für laufende Mandate; `FRST` für neue Mandate prüfen),
+- welcher Annahmeschluss gilt,
+- und welche Referenz (`PmtInfId` oder `MsgId`) die HVB bei der Sammelgutschrift als Kundenreferenz zurückgibt.
 
 Ohne erfolgreichen Akzeptanztest darf kein produktiver Export freigegeben werden.
 
@@ -644,6 +695,10 @@ SEPA-LAUF-.YYYY.-.#####
 | `export_profile` | Link `SEPA Exportprofil` | ja | verwendetes Bankprofil |
 | `bank_account` | Link `Bank Account` | ja | Geschäftskonto |
 | `collection_date` | Date | ja | gewünschtes Einzugs-/Fälligkeitsdatum |
+| `sequence_type` | Select | ja | Sequenztyp des Laufs (`RCUR`, `FRST`, `OOFF`) |
+| `batch_booking` | Check | ja | `BtchBookg`; `0` bei Einzelbuchung |
+| `msg_id` | Data | read-only | `GrpHdr/MsgId` der Datei |
+| `pmtinf_id` | Data | read-only | `PmtInf/PmtInfId` = Name des Einzugslaufs |
 | `status` | Select | ja | Laufstatus |
 | `position_count` | Int | read-only | Anzahl Positionen |
 | `total_amount` | Currency | read-only | Summe Positionen |
@@ -690,6 +745,7 @@ Technische Optionswerte werden ASCII-kompatibel gespeichert; die UI darf deutsch
 
 ### 10.5 Regeln
 
+- Ein Einzugslauf hat genau ein Einzugsdatum und genau einen Sequenztyp. Er erzeugt genau eine Datei mit genau einem `PmtInf`-Block. Bei mehreren Einzugsdaten entstehen mehrere Einzugsläufe.
 - Ein exportierter Lauf ist in seinen finanziellen Kerndaten unveränderlich.
 - Änderungen nach Export erfordern einen neuen Lauf.
 - Die Summe wird ausschließlich aus Positionen berechnet.
@@ -748,8 +804,11 @@ SEPA-POS-.YYYY.-.#######
 | `customer` | Link `Customer` | ja | Debitor |
 | `sepa_mandate` | Link `SEPA Mandat` | ja | aktives Mandat |
 | `sales_invoice` | Link `Sales Invoice` | ja | genau eine Rechnung |
+| `payment_schedule_row` | Data | ja | Name der Zahlungsplanzeile (`Payment Schedule`) |
+| `payment_term` | Link `Payment Term` | ja | Zahlungsbedingung der Zeile |
+| `due_date` | Date | ja | Fälligkeit der Zeile |
 | `collection_date` | Date | ja | Ausführungsdatum |
-| `amount` | Currency | ja | Betrag aus Mandatsplan |
+| `amount` | Currency | ja | offener Betrag der Lastschriftzeile bei Erzeugung |
 | `currency` | Link `Currency` | ja | EUR |
 | `purpose` | Small Text | ja | variabler Verwendungszweck |
 | `internal_reference` | Data | ja, unique | interne stabile Referenz |
@@ -759,7 +818,7 @@ SEPA-POS-.YYYY.-.#######
 | `debtor_iban_hash` | Data | ja | Hash der normalisierten IBAN |
 | `debtor_iban_last4` | Data | ja | maskierte Anzeige |
 | `sequence_type` | Select | ja | bankseitig validierter Typ |
-| `prenotification_status` | Select | ja | Vorabinformation |
+| `prenotification_status` | Select | ja | Vorabankündigung (Kapitel 11.7) |
 | `prenotification_date` | Date | nein | Versand-/Informationsdatum |
 | `status` | Select | ja | Positionsstatus |
 | `payment_entry` | Link `Payment Entry` | nein | bestätigte Zahlung |
@@ -806,60 +865,42 @@ Vor Erstellung:
 - Der Customer stimmt mit Rechnung und Mandat überein.
 - Die Rechnung ist eingereicht.
 - Die Rechnung besitzt einen positiven offenen Betrag.
-- Der Betrag stammt aus dem fälligen Mandatsplan.
+- Die Zahlungsplanzeile hat die Zahlungsweise „SEPA-Lastschrift“ und einen offenen Betrag größer 0.
+- Die Fälligkeit liegt am oder vor dem Stichtag des Laufs und am oder nach dem Go-live-Stichtag.
 - Das Einzugsdatum liegt nicht nach Austritt beziehungsweise Mietende.
-- Der Einzug ist nicht bereits durch eine andere Position mit gleichem Planungsschlüssel abgebildet.
+- Für die Zeile gibt es keine aktive Einzugsposition.
 
-Vergleich mit dem Rechnungsrest:
+Der Betrag der Position ist der offene Betrag der Zeile. Er darf den offenen Betrag der Rechnung nicht übersteigen. Ist er größer, entsteht ein Konflikt und keine Position. Eine automatische Kürzung ist nicht zulässig.
 
-| Bedingung | Ergebnis |
-|---|---|
-| Mandatsbetrag kleiner als Rechnungsrest | Position zulässig, Rechnung bleibt später teilweise offen |
-| Mandatsbetrag gleich Rechnungsrest | Position zulässig |
-| Mandatsbetrag größer als Rechnungsrest | Konflikt, keine automatische Position |
-| kein Rechnungsrest | keine Position |
-| keine eindeutige Rechnung | manuelle Prüfung |
+### 11.6 Auswahl über Zahlungsplanzeilen
 
-Eine automatische Kürzung des Mandatsbetrags ist nicht zulässig.
+Die Auswahl läuft über Zahlungsplanzeilen. Jede Lastschriftzeile gehört genau einer Rechnung. Eine Suche nach passenden Rechnungen für einen Mandatstermin entfällt.
 
-### 11.6 Rechnungsauswahl
+### 11.7 Vorabankündigung
 
-Für einen fälligen Mandatstermin wird eine geeignete offene Rechnung gesucht:
+Die Rechnung mit Zahlungsplan, versendet per E-Mail, ist die Vorabankündigung. Eine Lastschriftzeile ist einzugsbereit, wenn beide Bedingungen erfüllt sind:
 
-1. gleiche fachliche Quelle,
-2. gleicher Customer,
-3. richtige Abrechnungsart,
-4. eingereichte Rechnung,
-5. offener Betrag,
-6. Rechnungsperiode passt zum Einzugstermin,
-7. älteste passende Fälligkeit zuerst.
+- Die letzte versendete E-Mail mit der Rechnung lag nach der letzten Änderung der Zeile.
+- Die letzte versendete E-Mail lag mindestens die Frist vor dem Einzugsdatum. Die Frist steht im Exportprofil. Standard sind 14 Kalendertage.
 
-Wenn mehrere Rechnungen gleich plausibel sind, wird keine automatische Position erzeugt.
-
-### 11.7 Vorabinformation
-
-Eine Position darf nur exportiert werden, wenn die erforderliche Vorabinformation dokumentiert ist.
+ERPverein erkennt den Versand an der `Communication` zur Rechnung und an der zugehörigen `Email Queue` im Status `Sent` (Kapitel 31.4).
 
 Mögliche Statuswerte:
 
-- `Nicht erforderlich`,
-- `Geplant`,
+- `Nicht erforderlich` (keine Lastschriftzeile),
+- `Ausstehend`,
 - `Versendet`,
-- `Dauerplan mitgeteilt`,
-- `Manuell bestätigt`.
-
-Da Rechnungsbetrag und Lastschriftbetrag voneinander abweichen können, gilt eine Rechnung nicht automatisch als ausreichende Vorabinformation.
+- `Erneut senden` (Lastschriftzeile nach dem Versand geändert),
+- `Manuell bestätigt` (Zahler ohne E-Mail-Adresse; der Kassenwart bestätigt).
 
 ### 11.8 Idempotenz
 
 Ein fachlicher Generierungsschlüssel muss mindestens enthalten:
 
 ```text
-Mandat
-+ Solltermin
-+ Betrag
-+ Rechnung
-+ fachliche Quelle
+Rechnung
++ Zahlungsbedingung der Zahlungsplanzeile
++ Fälligkeit der Zeile
 ```
 
 Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen.
@@ -871,7 +912,7 @@ Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen.
 - `DD-ITEM-003` Rechnungsfinder
 - `DD-ITEM-004` Betragsprüfung
 - `DD-ITEM-005` Austritt/Mietende
-- `DD-ITEM-006` Vorabinformation
+- `DD-ITEM-006` Vorabankündigung
 - `DD-ITEM-007` Idempotenz
 - `DD-ITEM-008` Statusmaschine
 - `DD-ITEM-009` Datenschutzfelder
@@ -883,9 +924,9 @@ Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen.
 ### 12.1 Benutzerfluss
 
 ```text
-1. Zeitraum und Exportprofil wählen
-2. fällige Mandatstermine ermitteln
-3. passende offene Rechnungen suchen
+1. Stichtag und Exportprofil wählen
+2. fällige Lastschriftzeilen ermitteln (Fälligkeit am oder vor dem Stichtag, am oder nach dem Go-live-Stichtag)
+3. Einzugsdatum je Zeile bestimmen (nächster TARGET2-Geschäftstag, mindestens heute plus Vorlauf)
 4. Vorschau mit erfolgreichen Positionen und Konflikten anzeigen
 5. Benutzer bestätigt die Auswahl
 6. Lauf und Positionen im Status Entwurf erzeugen
@@ -898,13 +939,11 @@ Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen.
 Die Vorschau trennt:
 
 - erzeugbare Positionen,
-- fehlende Rechnungen,
-- Mandatsbetrag größer Rechnungsrest,
-- inaktives oder unvollständiges Mandat,
-- fehlende Vorabinformation,
+- kein aktives Mandat oder geändertes Mandat,
+- Vorabankündigung fehlt oder kommt zu spät,
+- Betrag größer als der offene Betrag,
 - Datum nach Austritt oder Mietende,
-- bereits vorhandene Position,
-- nicht eindeutige Rechnung.
+- bereits vorhandene Position.
 
 ### 12.3 Keine versteckten Customer-Abhängigkeiten
 
@@ -939,11 +978,11 @@ Nicht relevante Customer-Felder dürfen den Einzug nicht blockieren.
 
 ---
 
-## 13. HVB-Export
+## 13. pain.008-Export
 
 ### 13.1 Erste Ausbaustufe
 
-Unterstützt wird zunächst das für den bestehenden PayGate-Prozess geeignete CSV-/TSV-Format.
+Unterstützt wird SEPA-XML `pain.008.001.08` nach DFÜ-Abkommen Anlage 3 (DK-TVS GBIC_5). Ein CSV- oder TSV-Format für PayGate entfällt. Jede Datei wird vor dem Speichern gegen das XSD geprüft.
 
 Die fachlichen Positionsdaten umfassen mindestens:
 
@@ -954,7 +993,7 @@ Die fachlichen Positionsdaten umfassen mindestens:
 - Betrag,
 - Verwendungszweck.
 
-Weitere Bankdaten werden über Exportprofil oder nachgelagerte PayGate-Schritte bereitgestellt.
+Gläubigername, Gläubiger-IBAN, BIC und Gläubiger-ID kommen aus dem Exportprofil. `AmdmntInd` ist `false`, solange Gläubiger-ID und Mandatsreferenz unverändert sind. Der Sequenztyp ist `RCUR`. Eine Anschrift des Zahlers ist nur für Konten außerhalb des EWR nötig; wenn angegeben, dann strukturiert oder hybrid.
 
 ### 13.2 Formatneutraler Kern
 
@@ -962,8 +1001,7 @@ Der Exportservice erhält kanonische Positionsdaten und übergibt sie an einen f
 
 ```text
 CollectionExportService
-├── HVBDelimitedExportWriter
-└── Pain008ExportWriter      [spätere Ausbaustufe]
+└── Pain008ExportWriter      [pain.008.001.08, erste Ausbaustufe; Bibliothek sepaxml mit fester Version]
 ```
 
 ### 13.3 Verwendungszweck
@@ -994,13 +1032,15 @@ Nicht jeder Platzhalter muss in der Standardvorlage verwendet werden.
 
 Anforderungen:
 
-- höchstens bankseitig zulässige Länge,
+- höchstens 35 Zeichen,
 - ASCII-kompatibel,
 - eindeutig,
 - unveränderlich,
 - keine direkt lesbare IBAN oder Personendaten,
 - aus einer internen ID plus Prüfsuffix ableitbar,
 - niemals wiederverwenden.
+
+Vorschlag: Die `EndToEndId` ist der Name der Einzugsposition. Die `PmtInfId` ist der Name des Einzugslaufs.
 
 Beispiel ausschließlich synthetisch:
 
@@ -1019,7 +1059,7 @@ Ein Lauf kann nur exportiert werden, wenn:
 - Mandate aktiv sind,
 - Rechnungen weiterhin offen sind,
 - Beträge weiterhin zulässig sind,
-- Vorabinformationen dokumentiert sind,
+- Vorabankündigungen rechtzeitig versendet oder manuell bestätigt sind,
 - Referenzen eindeutig sind,
 - alle Positionen dasselbe Profil und kompatible Ausführungsdaten verwenden.
 
@@ -1027,15 +1067,7 @@ Die Rechnung wird unmittelbar vor Export erneut geprüft. Eine zwischenzeitlich 
 
 ### 13.6 Dateiaufteilung
 
-Wenn das konfigurierte Dateilimit überschritten wird:
-
-- bleibt der fachliche Einzugslauf erhalten,
-- der Export erzeugt mehrere nummerierte Dateien,
-- jede Datei erhält einen eigenen Hash und eine eigene Bankdateireferenz,
-- Positionen werden einer Exportdatei zugeordnet,
-- die Summe aller Dateien entspricht dem Lauf.
-
-Falls dies die Komplexität der ersten Umsetzung unverhältnismäßig erhöht, darf ein Lauf initial auf das Dateilimit begrenzt werden. Dies muss im UI klar angezeigt werden.
+Ein Einzugslauf erzeugt genau eine Datei (Kapitel 10.5). Überschreitet die Auswahl das konfigurierte Dateilimit, verteilt ERPverein die Positionen bei der Erzeugung auf mehrere Einzugsläufe. Die Vorschau zeigt diese Aufteilung.
 
 ### 13.7 Speicherung
 
@@ -1051,15 +1083,15 @@ Falls dies die Komplexität der ersten Umsetzung unverhältnismäßig erhöht, d
 ### 13.8 Tasks
 
 - `EXP-001` kanonisches Exportmodell
-- `EXP-002` HVB-Writer
+- `EXP-002` pain.008-Writer mit XSD-Prüfung
 - `EXP-003` Verwendungszwecktemplates
 - `EXP-004` End-to-End-Referenzen
 - `EXP-005` Validierung
 - `EXP-006` private Speicherung
 - `EXP-007` Dateihash
-- `EXP-008` Dateiaufteilung
+- `EXP-008` Aufteilung auf mehrere Einzugsläufe
 - `EXP-009` synthetische Akzeptanzdatei
-- `EXP-010` PayGate-Akzeptanztest
+- `EXP-010` Upload-Test bei der HVB
 
 ---
 
@@ -1069,7 +1101,14 @@ Falls dies die Komplexität der ersten Umsetzung unverhältnismäßig erhöht, d
 
 Kontoauszüge werden als maschinenlesbarer Export importiert.
 
-Der aktuell untersuchte Bankexport enthält abstrahiert:
+Die laufende Quelle ist die AqBanking-CSV (`aqbanking-cli listtrans`) mit einem Manifest. Die Banking-Webtop sendet beides an einen n8n-Webhook. n8n ruft genau eine ERPverein-Methode auf und übergibt Manifest und Datei unverändert. n8n parst keine Zeilen und läuft nicht in einer Schleife pro Umsatz. Der Parser ist versioniert:
+
+- `aqbanking-listtrans-default-v2`: Standardvorlage von AqBanking, tabulatorgetrennt, ohne Kopfzeile,
+- `aqbanking-listtrans-template-v3`: erweiterte Vorlage mit Kopfzeile und SEPA-Feldern (Freigabe durch den Benutzer ausstehend).
+
+Der laufende Import übernimmt nur Bankumsätze ab dem Go-live-Stichtag.
+
+Der für die Historie untersuchte Bankexport enthält abstrahiert:
 
 - Kontoidentifikation,
 - Buchungsdatum,
@@ -1091,7 +1130,7 @@ Der aktuell untersuchte Bankexport enthält abstrahiert:
 
 Keine produktiven Beispielwerte werden in Code, Tests oder Dokumentation übernommen.
 
-> **Hinweis zum Erstimport:** Die in diesem Abschnitt beschriebenen Umsatzimportfelder basieren auf dem derzeit vorliegenden Bankexport und dienen zunächst der historischen Erstübernahme. Sie sind keine endgültige Schnittstellendefinition. Das finale Quellformat, die verfügbaren Spalten und das Feldmapping werden angepasst, sobald der Export für den laufenden Bankbetrieb feststeht. Der Importer muss deshalb profil- und versionsbasiert aufgebaut werden und darf nicht fest an die Struktur des Erstimports gekoppelt sein.
+> **Hinweis:** Die oben genannten Felder stammen aus dem Bankexport für die Historie. Der laufende Import nutzt die AqBanking-CSV. Welche Felder die HVB dort füllt, klärt ein echter Abruf; dem Benutzer werden nur Feldnamen und Füllgrad gezeigt (Kapitel 32). Der Importer bleibt profil- und versionsbasiert und ist nicht fest an eine Quellstruktur gekoppelt.
 
 ### 14.2 Technische Besonderheiten
 
@@ -1118,9 +1157,11 @@ Felder:
 |---|---|---|
 | `company` | Link `Company` | Gesellschaft |
 | `bank_account` | Link `Bank Account` | Geschäftskonto |
-| `import_profile` | Select/Data | HVB-Profilversion |
+| `import_profile` | Select/Data | Importprofil, zum Beispiel `aqbanking-listtrans-default-v2` |
 | `source_file` | Attach | private Originaldatei |
 | `source_file_sha256` | Data unique | Dateihash |
+| `request_id` | Data | Anfrage-ID aus dem Manifest |
+| `idempotency_key` | Data unique | Idempotenzschlüssel aus dem Manifest |
 | `status` | Select | Entwurf, Validiert, Importiert, Teilfehler, Fehler |
 | `row_count` | Int | Zahl Datenzeilen |
 | `new_transaction_count` | Int | neu erzeugte Bewegungen |
@@ -1252,16 +1293,28 @@ Ein Wiederholungsimport muss:
 
 ### 14.9 ERPNext Banking
 
-Nach dem Import werden die Standardfunktionen verwendet für:
+Aufgabenteilung zwischen ERPverein und dem Banking-Bereich `/banking` von ERPNext v16:
 
-- Bank Reconciliation,
-- manuelle Zuordnung,
-- Payment Entry,
-- Journal Entry,
-- allgemeine Bankregeln,
-- Gebühren und sonstige Buchungen.
+| Aufgabe | Wer erledigt sie |
+|---|---|
+| Bankumsatz anlegen und buchen | ERPverein-Bankimport |
+| Partei über IBAN erkennen | ERPNext (`enable_party_matching`) |
+| Gebühren und feste Vorgänge buchen | ERPNext-Regeln (`Bank Transaction Rule`) |
+| Sammelgutschrift zuordnen und Zahlungen buchen | ERPverein (deterministisch) |
+| Selbstzahler mit sicherem Signal | ERPverein (deterministisch) |
+| Rücklastschrift mit Gegenbuchung | ERPverein (deterministisch) |
+| Unklare Fälle, Teilzahlungen, Umbuchungen | Kassenwart im Banking-Bereich `/banking` |
+| Abgleich speichern | ERPNext (`Bank Transaction Payments`) |
 
-ERPverein ersetzt diese Oberfläche nicht.
+ERPverein ersetzt diese Oberfläche nicht. ERPverein verwendet `auto_reconcile_vouchers` nicht für SEPA-Zahlungen, weil diese Funktion alle Kandidaten in Rangfolge verteilt.
+
+Diese Tabellen müssen befüllt sein:
+
+1. `Bank` (HVB) und `Bank Account` für das Vereinskonto mit `is_company_account = 1` und Hauptbuchkonto 18000,
+2. `Bank Transaction` je Kontoauszugszeile, gebucht,
+3. `Bank Account` je Zahler mit Partei (für Mandate legt ERPverein diese Konten an),
+4. `Bank Transaction Rule` für Gebühren und feste Vorgänge (Einrichtung durch den Kassenwart),
+5. `Mode of Payment` und `Payment Term` für den Zahlungsplan (Stammdaten durch ERPverein).
 
 ### 14.10 Tasks
 
@@ -1328,7 +1381,8 @@ Für jede bestätigte Position wird ein eigener `Payment Entry` erzeugt:
 - `party = Position.customer`,
 - Bankkonto aus Exportprofil,
 - Buchungsdatum aus Bank Transaction,
-- Referenz auf genau eine Sales Invoice,
+- `reference_no` = `EndToEndId`, `reference_date` = Buchungsdatum,
+- Referenz auf genau eine Sales Invoice mit der Zahlungsbedingung der Zahlungsplanzeile (`payment_term`),
 - `allocated_amount = Position.amount`,
 - Link auf die Einzugsposition über ein Custom Field.
 
@@ -1526,8 +1580,9 @@ Ablauf:
 5. Journal Entry auf ursprüngliche Sales Invoice referenzieren
 6. Journal Entry mit negativer Bank Transaction abstimmen
 7. Rechnung wird wieder ganz oder teilweise offen
-8. Position auf Rückbelastet setzen
-9. ursprüngliche Payment Entry bleibt bestehen
+8. Zahlungsplanzeile wieder öffnen (Kapitel 31.6)
+9. Position auf Rückbelastet setzen
+10. ursprüngliche Payment Entry bleibt bestehen
 ```
 
 ### 17.5 Buchung ohne Gebühren
@@ -1627,13 +1682,15 @@ Sie werden nicht als primärer Matcher für dynamische Mitglieds- oder Mietzahlu
 - ein Betrag allein nicht eindeutig ist,
 - und die fachliche Provenienz berücksichtigt werden muss.
 
-ERPverein-spezifische Matcher liefern Vorschläge oder deterministische Zuordnungen. Die eigentliche Buchung verwendet ERPNext-Standardbelege.
+ERPverein-spezifische Matcher liefern Vorschläge oder deterministische Zuordnungen. Die eigentliche Buchung verwendet ERPNext-Standardbelege. Die Aufgabenteilung mit dem Banking-Bereich `/banking` steht in Kapitel 14.9.
 
 ---
 
 ## 19. Historische Rekonstruktion ab 2016
 
 ### 19.1 Ausgangspunkt
+
+Die Historie vom 01.01.2016 bis zum Tag vor dem Go-live-Stichtag kommt vor dem Release nach ERPNext (Phase H). Umfang ist die vollständige Buchhaltung: Rechnungen, Zahlungen, Buchungssätze und jede Bankbewegung, auch jede Ausgabe. Quellen sind Kontoauszüge, Buchhaltung, Mitgliederkonten und das Rechnungsbuch aus Vereinsmeister. Das Rechnungsbuch lässt sich nicht gesamt exportieren. Phase H klärt den Weg: angepasster Bericht oder direkter Zugriff auf die Vereinsmeister-Datenbank. Die alten Vereinsmeister-Konten werden auf SKR 42 übergeleitet. Der Benutzer testet die Historie auf der Entwicklungs-Site und nimmt jedes Jahr ab.
 
 Voraussetzung:
 
@@ -1672,6 +1729,8 @@ Begründung:
 - rückwirkende Subscription-Jobs dürfen keine unbeabsichtigten Rechnungen erzeugen,
 - die Migration benötigt einen stabilen, wiederanlaufbaren Prozess.
 
+Historische Rechnungen sind Soll-Rechnungen. Nicht bezahlte Beiträge und Mieten sind Schulden und bleiben als offene Posten sichtbar. Sie kommen nie automatisch in einen Einzugslauf und nie automatisch in eine Mahnung. Wie der Verein mit alten Rückständen umgeht, entscheidet der Benutzer.
+
 Historische Rechnungen erhalten:
 
 - tatsächliches Rechnungsdatum,
@@ -1679,7 +1738,7 @@ Historische Rechnungen erhalten:
 - tatsächlichen Leistungszeitraum,
 - Customer,
 - fachliche Quelle,
-- Migrationsbatch,
+- Herkunft (Quelle, Fingerprint, Jahr),
 - synthetischen oder bekannten Quellschlüssel,
 - Status und Beträge.
 
@@ -1687,30 +1746,18 @@ Historische Rechnungen erhalten:
 
 Auf relevanten Belegen:
 
+Auf `Sales Invoice`, `Payment Entry`, `Journal Entry` und `Bank Transaction`:
+
 | Feldname | Typ |
 |---|---|
-| `erpverein_migration_batch` | Link `ERPverein Migration Batch` |
 | `erpverein_legacy_source_type` | Data |
 | `erpverein_legacy_source_id` | Data |
 | `erpverein_migration_fingerprint` | Data unique, soweit fachlich möglich |
+| `erpverein_legacy_year` | Int |
 
-### 19.5 Neuer DocType `ERPverein Migration Batch`
+### 19.5 Aufbereitung und Import
 
-Felder:
-
-- Zeitraum,
-- Quellart,
-- Datei oder Quelle,
-- privater Dateihash,
-- Status,
-- Anzahl Datensätze,
-- neu,
-- übersprungen,
-- fehlerhaft,
-- Summen,
-- Start und Ende,
-- Bearbeiter,
-- Abschlussprotokoll.
+Es gibt keinen DocType `ERPverein Migration Batch`. Der Agent bereitet die Vereinsmeister-Exporte mit Skripten außerhalb des Repositorys auf. Die Skripte ordnen Kontoauszug, Buchhaltung und Mitgliederkonten einander zu. Sie erzeugen Prüflisten und je Jahr eine Importmappe. Der Kassenwart prüft die Zuordnungen. Der Benutzer importiert die Mappe mit n8n über `frappe.client.insert_many`; die Belege werden direkt gebucht (`docstatus = 1`). Fingerprints verhindern doppelte Belege bei einem Wiederholungslauf. Für die Historie gibt es keine Subscriptions.
 
 ### 19.6 Reihenfolge pro Jahr
 
@@ -1753,7 +1800,7 @@ Pro Importperiode:
 - Datei-Hash,
 - Zeilenfingerprint,
 - fachlicher Belegfingerprint,
-- Migrationsbatch,
+- Herkunftsfelder (Quelle, Jahr),
 - eindeutige Quell-ID,
 - Wiederanlauf ohne Doppelbelege.
 
@@ -1768,7 +1815,7 @@ Ein Zeitraum wird erst gesperrt, wenn:
 
 ### 19.10 Tasks
 
-- `MIG-001` Migrationsbatch
+- `MIG-001` Herkunftsfelder und Fingerprints
 - `MIG-002` Stammdatenmapping
 - `MIG-003` historische Rechnungserzeugung
 - `MIG-004` Rechnungsfingerprints
@@ -1853,33 +1900,25 @@ Logs verwenden:
 
 ### 20.6 Rollen
 
-Vorgeschlagene Rollen:
+Der Verein hat einen Benutzer: den Kassenwart. Er erhält alle Rollen, die diese Abläufe brauchen:
 
-| Rolle | Rechte |
+| Rolle | Wofür |
 |---|---|
-| `ERPverein User` | Mitglied/Mieter lesen, eingeschränkte Sichten |
-| `ERPverein Manager` | Stammdaten und Abrechnungsassistenten |
-| `SEPA Operator` | Einzugsläufe vorbereiten und exportieren |
-| `Accounts User` | Bankimport und Reconciliation gemäß ERPNext |
-| `Accounts Manager` | Buchungen, Rücklastschriften, Freigaben |
-| `System Manager` | technische Administration |
+| `System Manager` | ERPverein-DocTypes (Mitglied, Mieter, SEPA-Mandat, Abrechnungen, SEPA-Einzugslauf) |
+| `Accounts Manager`, `Accounts User` | Rechnungen, Zahlungen, Buchungssätze, Bankumsätze, Storno |
+| `Sales Master Manager`, `Sales User` | Customer, Adressen und Kontakte |
 
-Ein Benutzer benötigt sowohl fachliche als auch ERPNext-Accounts-Rechte, um sensible Zahlungsdetails zu sehen.
+ERPverein führt keine eigenen Rollen ein. ERPverein prüft trotzdem jede Berechtigung und umgeht keine Rechte. Die Tests prüfen auch Benutzer mit weniger Rollen.
+
+n8n nutzt einen eigenen API-Benutzer. Hintergrundjobs laufen mit dem Benutzer, der sie eingereiht hat. Der API-Benutzer braucht deshalb die Rollen für Bankimport und Abgleich. Die genaue Liste legt Phase 3 fest.
 
 ### 20.7 Vier-Augen-Prinzip
 
-Empfohlen:
-
-- ein Benutzer bereitet den Lauf vor,
-- ein berechtigter Benutzer prüft/exportiert,
-- die Bank autorisiert separat,
-- die Kontobestätigung erfolgt über den Kontoauszug.
-
-In der ersten Umsetzung kann Vorbereitung und Export durch dieselbe App-Rolle erfolgen, sofern die externe Bankautorisierung getrennt bleibt.
+Entfällt. Der Verein hat nur einen Benutzer. Die Bank autorisiert die Lastschriftdatei getrennt: Der Kassenwart gibt sie in PayGate mit TAN frei. Die Kontobestätigung erfolgt über den Kontoauszug.
 
 ### 20.8 Tasks
 
-- `SEC-001` Rollenmatrix
+- `SEC-001` Rollen des Kassenwarts und des n8n-API-Benutzers
 - `SEC-002` private Files
 - `SEC-003` Maskierung
 - `SEC-004` sichere Logs
@@ -1991,7 +2030,9 @@ Ein zentraler Arbeitsvorrat zeigt:
 - unklare Rücklastschriften,
 - Parserfehler,
 - fehlende Rechnungen,
-- Mandatskonflikte.
+- Mandatskonflikte,
+- Zahlungsplan-Konflikte (Mandatssumme größer als Rechnungsbetrag, kein Termin im Leistungszeitraum),
+- fehlende oder verspätete Vorabankündigungen.
 
 Jeder Eintrag zeigt den Grund und mögliche nächste Aktionen.
 
@@ -2162,175 +2203,107 @@ müssen unverändert weiter bestehen.
 
 ## 24. Implementierungsphasen
 
-### Phase 0 – Freigabe der Spezifikation
+Die Phasen folgen der Übergabe vom 01.11.2026. Jede Phase endet mit Tests und einem Abschlussbericht: fertig, getestet, offen. Commit, Push und Tag erfolgen nur nach Freigabe des Benutzers.
 
-Tasks:
+### Phase 0 – Prüfen und entscheiden (Ziel: 15.11.2026)
 
-- `SPEC-001` Dokument fachlich prüfen
-- `SPEC-002` Datenmodelle bestätigen
-- `SPEC-003` Rollen bestätigen
-- `SPEC-004` Bankprofil-Akzeptanzpunkte bestätigen
-- `SPEC-005` offene Punkte dokumentieren
+- Prüffragen P1 bis P10 mit Belegen aus ERPNext `v16.53.0` und Frappe `v16.54.0` beantworten,
+- Variante für den Zahlungsplan nach dem Buchen festlegen,
+- offene Punkte zum HVB-Zugang, zur Entwicklungs-Site und zum Rechnungsbuch klären,
+- diese Spezifikation aktualisieren.
 
-Definition of Done:
+Definition of Done: Antworten, Variante und Änderungen an dieser Spezifikation sind vom Benutzer freigegeben.
 
-- Dokument freigegeben,
-- keine produktiven Daten enthalten,
-- alle blockierenden Entscheidungen getroffen.
+Status: freigegeben am 01.11.2026 mit Variante A.
 
-### Phase 1 – Read-only-Transparenz
+### Phase 1 – Zahlungsplan und Vorabankündigung (Ziel: Release bis 11.12.2026)
 
-Umfang:
+- Custom Fields an `Sales Invoice`,
+- Stammdaten `Mode of Payment` und `Payment Term`,
+- Erzeugung des Zahlungsplans aus dem Mandatsplan,
+- „Zahlungsplan bearbeiten“, „Zahlungsplan aus Mandat neu erzeugen“ und Nachtrag mit Vorschau,
+- app-eigenes Druckformat nach DIN 5008 mit Zahlungsplan,
+- Erkennung der Vorabankündigung und Einrichtung des E-Mail-Versands,
+- Firmen-`Bank Account` für Konto 18000 und Prüfung des Geschäftsjahres 2027,
+- Tests T1 bis T6.
 
-- Subscription-Sicht,
-- Rechnungssicht,
-- Zahlungszuordnungssicht,
-- Lastschriftsicht als vorbereiteter Bereich.
+Die Subscriptions erzeugen die Rechnungen 2027 am oder nach dem 01.01.2027. Das Release muss vorher auf der Site laufen. Sonst brauchen die neuen Rechnungen den Nachtrag.
 
-Definition of Done:
+### Phase 2 – Einzugslauf und pain.008 (Ziel: Banktest bis 15.01.2027)
 
-- keine Datenkopie,
-- permission-aware,
-- gemeinsame Customer korrekt getrennt,
-- Teilzahlungen sichtbar.
+- `SEPA Exportprofil`, `SEPA Einzugslauf` und `SEPA Einzugsposition`,
+- Vorschau und idempotente Erzeugung,
+- `pain.008.001.08`-Export mit XSD-Prüfung und privater Datei,
+- Navigation in beiden Workspace-Dateien,
+- Rollen und Berechtigungen (Kapitel 20.6),
+- Tests T7 bis T9 und T16 bis T18,
+- Upload-Test bei der HVB mit synthetischen oder freigegebenen Daten.
 
-### Phase 2 – Sicherer Bankimport
+Der erste echte Einzugslauf braucht die Freigabe des Benutzers.
 
-Umfang:
+### Phase 3 – Bankimport (vor dem Release)
 
-- Importbatch,
-- HVB-Parser,
-- Custom Fields,
-- Fingerprints,
-- Bank Transactions,
-- ERPNext-Banking-Integration.
+- `ERPverein Bankimport` und Custom Fields an `Bank Transaction`,
+- Erweiterung des AqBanking-Exports (nach Freigabe des Benutzers),
+- Parser `v2` und `v3`, Normalisierung, Fingerprint, Klassifikation und Duplikatschutz,
+- whitelisted API für n8n und n8n-Workflow (nicht in Git, ohne gespeicherte Ausführungsdaten),
+- Test T12.
 
-Definition of Done:
+### Phase 4 – Sammelgutschrift abgleichen (vor dem Release)
 
-- synthetischer Import erfolgreich,
-- Doppelimport ist No-op,
-- alle relevanten Referenzfelder bleiben getrennt,
-- Originaldatei privat.
+- Zuordnung der Sammelgutschrift und Zahlung je Einzugsposition,
+- Wiederanlauf ohne zweite Zahlung,
+- Tests T10 und T11.
 
-### Phase 3 – SEPA-Datenmodell
+### Phase 5 – Selbstzahler (vor dem Release)
 
-Umfang:
+- sichere Signale und Vorschläge,
+- Arbeitsvorrat,
+- Tests T13 und T14.
 
-- Exportprofil,
-- Einzugslauf,
-- Einzugsposition,
-- Statusmodelle,
-- Generierungsvorschau,
-- Rechnungs- und Betragsprüfung.
+### Phase 6 – Rücklastschriften (vor dem Release)
 
-Definition of Done:
+- Zuordnung, Gebührenbestimmung und Gegenbuchung,
+- Wiederöffnen der Zahlungsplanzeile,
+- Test T15.
 
-- Positionen idempotent,
-- Mandatsbetrag bleibt führend,
-- eine Position genau eine Rechnung,
-- Konflikte sichtbar.
+### Phase H – Historie ab 2016 (vor dem Release, parallel zu Phase 1 bis 6)
 
-### Phase 4 – HVB-Export
+- Aufbereitung der Vereinsmeister-Exporte mit Skripten außerhalb des Repositorys,
+- Zuordnungstabellen und Prüflisten je Jahr,
+- Importmappe und Import mit n8n,
+- Abnahme je Jahr auf der Entwicklungs-Site, danach Jahresabschluss und Sperre,
+- Tests T19 bis T29.
 
-Umfang:
+### Go-live
 
-- CSV-/TSV-Writer,
-- variable Verwendungszwecke,
-- stabile Referenzen,
-- Exportvalidierung,
-- private Dateien,
-- PayGate-Akzeptanztest.
+- produktive Site aufsetzen: Release, Erstimport (Mitglieder, Mieter, Mandate), Historie bis zum Tag vor dem Stichtag,
+- Subscriptions ab dem Stichtag anlegen; keine Rechnung für einen Zeitraum, den Vereinsmeister schon abgerechnet hat,
+- Freigabe durch den Benutzer.
 
-Definition of Done:
+Prüfpunkt am 01.12.2026: Der Restaufwand wird geschätzt. Hält der 01.01.2027 nicht, legt der Benutzer einen neuen Stichtag fest. Bis dahin zieht Vereinsmeister weiter ein.
 
-- Bank akzeptiert synthetische Testdatei,
-- Referenzrücklauf ist dokumentiert,
-- kein Produktivexport ohne Testfreigabe.
+### Später
 
-### Phase 5 – Sammelgutschrift und Zahlungen
-
-Umfang:
-
-- Laufmatching,
-- Payment Entry je Position,
-- Reconciliation,
-- Wiederanlauf.
-
-Definition of Done:
-
-- Sammelbetrag stimmt,
-- Rechnungen korrekt bezahlt/teilbezahlt,
-- keine Doppelbuchungen.
-
-### Phase 6 – Selbstüberweiser
-
-Umfang:
-
-- Rechnungsnummernparser,
-- IBAN-Matching,
-- Zuordnungsvorschläge,
-- Mehrrechnungszahlungen,
-- Überzahlungen.
-
-Definition of Done:
-
-- sichere Treffer automatisierbar,
-- unsichere Treffer bleiben manuell,
-- mehrere Rechnungen korrekt allokiert.
-
-### Phase 7 – Rejects und Rücklastschriften
-
-Umfang:
-
-- Klassifikation,
-- Positionsmatching,
-- Gebühren,
-- Gegenbuchung,
-- Anzeige.
-
-Definition of Done:
-
-- Rechnung wird korrekt wieder offen,
-- ursprüngliche Zahlung bleibt,
-- negative Bank Transaction abgestimmt,
-- keine doppelte Rückbuchung.
-
-### Phase 8 – Historische Migration
-
-Umfang:
-
-- Migration Batch,
-- historische Rechnungen,
-- Bankimporte ab 2016,
-- Zahlungen,
-- Rücklastschriften,
-- Jahresabgleich.
-
-Definition of Done:
-
-- Bankkonto stimmt,
-- offene Posten geprüft,
-- Wiederanlauf möglich,
-- Zeitraum dokumentiert und sperrbar.
+- Read-only-Sichten in Mitglied und Mieter (Kapitel 8),
+- Mahnwesen mit ERPNext `Dunning`,
+- Einreichung per FinTS aus der Banking-Webtop (braucht AqBanking mit `pain.008.001.08`).
 
 ---
 
 ## 25. Task-Backlog in empfohlener Reihenfolge
 
 1. `SPEC-*`
-2. `VIEW-*`
-3. `BANK-*`
-4. `PROFILE-*`
-5. `DD-RUN-*`
-6. `DD-ITEM-*`
-7. `DD-GEN-*`
-8. `EXP-*`
-9. `SETTLE-*`
-10. `TRANSFER-*`
-11. `RETURN-*`
-12. `MIG-*`
-13. `SEC-*` fortlaufend
-14. Tests fortlaufend
+2. Zahlungsplan und Vorabankündigung (Kapitel 31)
+3. `PROFILE-*`, `DD-RUN-*`, `DD-ITEM-*`, `DD-GEN-*`, `EXP-*`
+4. `BANK-*`
+5. `SETTLE-*`
+6. `TRANSFER-*`
+7. `RETURN-*`
+8. `MIG-*` parallel zu 2 bis 7
+9. `VIEW-*` (später)
+10. `SEC-*` fortlaufend
+11. Tests fortlaufend
 
 ---
 
@@ -2343,8 +2316,8 @@ Das System gilt für den beschriebenen Umfang als fachlich vollständig, wenn:
 3. Jede Rechnung zeigt alle zugeordneten Zahlungen mit Teilbeträgen.
 4. Eine Zahlung kann mehrere Rechnungen desselben Customers begleichen.
 5. Eine Bankbewegung kann über mehrere Payment Entries mehrere Customers bedienen.
-6. Lastschriftbeträge kommen ausschließlich aus dem Mandatsplan.
-7. Eine Einzugsposition gehört genau einer Rechnung.
+6. Lastschriftbeträge kommen aus den Lastschriftzeilen des Zahlungsplans; ERPverein erzeugt diese Zeilen aus dem Mandatsplan.
+7. Eine Einzugsposition gehört genau einer Zahlungsplanzeile und damit genau einer Rechnung.
 8. Bankexporte verändern keinen Rechnungsstatus.
 9. Eine bestätigte Sammelgutschrift erzeugt echte Payment Entries.
 10. Teilzahlungen lassen den korrekten Rechnungsrest offen.
@@ -2365,9 +2338,9 @@ Das System gilt für den beschriebenen Umfang als fachlich vollständig, wenn:
 
 Nach dem Kernumfang:
 
-- `pain.008`-XML-Export,
+- Einreichung der Lastschriftdatei per FinTS (braucht AqBanking mit `pain.008.001.08`),
 - weitere Banken und Importprofile,
-- automatische Vorabinformation per E-Mail oder Brief,
+- Vorabankündigung per Brief für Zahler ohne E-Mail-Adresse,
 - Weiterberechnung von Rücklastschriftgebühren,
 - Mahnwesen auf Basis echter offener Beträge,
 - automatische Zahlungsvorschläge mit konfigurierbarer Konfidenz,
@@ -2386,16 +2359,19 @@ Diese Erweiterungen dürfen die lineare Kernarchitektur nicht verändern.
 
 Die folgenden Punkte müssen vor der jeweils betroffenen Phase entschieden oder durch einen Akzeptanztest geklärt werden:
 
-1. Wie wird im konkreten PayGate-Prozess eine individuelle End-to-End-Referenz je Position übertragen?
-2. Welche Sequenztypen akzeptiert und erwartet die Bank für die verwendeten Mandate?
-3. Welche Feldlängen und Zeichensätze gelten im konkreten HVB-Upload?
-4. Wird die bankseitige Auftragsreferenz vor oder erst nach dem Upload bereitgestellt?
-5. Welches konkrete Sachkonto wird für Rücklastschriftgebühren verwendet?
-6. Welche Rollen dürfen Einzugsläufe prüfen und exportieren?
+1. Nimmt PayGate `pain.008.001.08` an? Gibt es einen Test ohne Ausführung (Upload ohne Freigabe)? Klärung im Upload-Test der Phase 2.
+2. Brauchen neu erteilte Mandate den Sequenztyp `FRST`?
+3. Welche Referenz gibt die HVB bei der Sammelgutschrift als Kundenreferenz zurück? Liefert AqBanking sie im camt-Abruf?
+4. Welche Absenderadresse und welcher SMTP-Anbieter gelten für den E-Mail-Versand?
+5. DIN 5008 Form A oder Form B? Gibt es Briefkopf und Logo?
+6. An welchem Tag im Monat ist die Miete fällig? Wie erfolgt die Vorabankündigung bei monatlichen Mieten mit gleichem Betrag?
 7. Welche Standardvorlage wird für den variablen Verwendungszweck verwendet?
-8. Wird ein Einzugslauf initial auf das Dateilimit begrenzt oder automatisch auf mehrere Dateien verteilt?
-9. Wie wird eine Vorabinformation im bestehenden organisatorischen Prozess nachgewiesen?
-10. Ab welchem erfolgreich migrierten Zeitraum werden Buchungsperioden gesperrt?
+8. Gibt der Benutzer die Erweiterung des AqBanking-Exports frei?
+9. Wie kommen die Sollstellungen (Rechnungsbuch) aus Vereinsmeister? Ein Gesamtexport ist nicht möglich; Berichte gibt es nur je Sammelabrechnung. Wege: Bericht anpassen oder Daten direkt aus der Vereinsmeister-Datenbank lesen (Phase H).
+10. Wie geht der Verein mit alten Rückständen um?
+11. Ab welchem erfolgreich übernommenen Jahr werden Buchungsperioden gesperrt?
+
+Entschieden sind: Upload über PayGate; Gebührenkonto 68550; Sequenztyp `RCUR` für laufende Mandate; Vorabankündigung durch die Rechnung per E-Mail mit Nachweis über `Communication` und `Email Queue`; ein Einzugslauf ergibt genau eine Datei; ein Benutzer mit allen Rollen, kein Vier-Augen-Prinzip (Kapitel 20.6, 20.7).
 
 Keiner dieser Punkte erlaubt das Einchecken produktiver Bankdaten.
 
@@ -2428,6 +2404,161 @@ Die Architektur beruht auf:
 - ERPNext `Journal Entry`,
 - offiziellen SEPA- und Bankanforderungen,
 - abstrahierten Eigenschaften des vorhandenen Bankexports,
-- und bewährten Mustern anderer ERP-Systeme für Direct-Debit-Batches und Rückgaben.
+- bewährten Mustern anderer ERP-Systeme für Direct-Debit-Batches und Rückgaben,
+- dem Quellcode von ERPNext `v16.53.0` und Frappe `v16.54.0` (Prüfergebnisse in Kapitel 32),
+- dem DFÜ-Abkommen Anlage 3 Version 3.9 (DK-TVS `pain.008.001.08` GBIC_5),
+- den HVB-Unterlagen „Bedingungen für den Lastschrifteinzug“ (Formular 502933, Stand 12.23) und „Formats – Payment transactions“ (Stand September 2026),
+- und dem Quellcode von AqBanking 6.9.2.
 
 Produktive Quelldaten sind bewusst nicht Bestandteil dieser Spezifikation.
+
+---
+
+## 31. Zahlungsplan und Vorabankündigung
+
+### 31.1 Erzeugung
+
+1. ERPverein setzt den Zahlungsplan, bevor die Rechnung gebucht wird.
+2. ERPverein bearbeitet nur Rechnungen aus ERPverein-Subscriptions (`Subscription.erpverein_managed = 1`).
+3. Der Zahler kommt aus `Subscription.erpverein_sources` mit der Rolle `Beitragszahler` oder `Mieter`.
+4. Lastschriftzeilen entstehen nur, wenn alle Bedingungen erfüllt sind: `abrechnungsart = Lastschrift`, ein aktives Mandat und ein vollständiger Mandatsplan.
+   - Je Mandatstermin im Leistungszeitraum (`from_date` bis `to_date`) entsteht eine Zeile. Fälligkeit ist der Solltermin. Betrag ist der Mandatsbetrag. Zahlungsweise ist „SEPA-Lastschrift“.
+   - Ist die Summe kleiner als der Rechnungsbetrag, entsteht eine Restzeile „Überweisung“ mit einer Fälligkeit, die noch nicht im Plan steht.
+   - Ist die Summe größer als der Rechnungsbetrag, entsteht keine Lastschriftzeile. Es gilt der Standardplan. Der Konflikt erscheint im Arbeitsvorrat.
+   - Fällt kein Termin in den Leistungszeitraum, gilt der Standardplan. Der Fall erscheint im Arbeitsvorrat.
+   - Liegt ein Termin vor dem Rechnungsdatum, entsteht keine Lastschriftzeile. Es gilt der Standardplan. Der Fall erscheint im Arbeitsvorrat. Für Lastschriftzahler eignet sich deshalb nur die Rechnungserzeugung zum Periodenbeginn oder vor dem Periodenbeginn.
+5. Sonst gilt der ERPNext-Standardplan mit der Zahlungsweise „Überweisung“.
+6. Jede Zeile bekommt eine Zahlungsbedingung, die innerhalb der Rechnung eindeutig ist („ERPverein Rate 01“ bis „ERPverein Rate 60“).
+7. Die Rechnung speichert die Herkunft des Plans (`Mandat`, `Standard` oder `Bearbeitet`) und einen Fingerprint. ERPverein überschreibt nie einen Plan mit der Herkunft `Bearbeitet`.
+8. Die Logik ist idempotent. Sie läuft beim Speichern und beim Buchen.
+
+### 31.2 Technische Umsetzung beim Speichern
+
+- Ein Hook `before_validate` an `Sales Invoice` (`doc_events`) setzt den Plan. Frappe ruft ihn beim Anlegen und beim Buchen vor `validate` auf.
+- Der Hook berechnet zuerst die Summen der Rechnung und danach die Zeilen.
+- Zeilen mit festem Betrag haben `invoice_portion = 0` sowie gesetzte Werte für `payment_amount` und `outstanding`. ERPNext rechnet nur Zeilen mit `invoice_portion` neu und setzt nur dort `outstanding`.
+- Der Hook leert `payment_terms_template`. Sonst prüft ERPNext die Fälligkeit gegen die Vorlage.
+- Die Standardzeile aus `Subscription.create_invoice()` entsteht nur bei `days_until_due > 0`. Der Hook erkennt sie so: neue Rechnung, `subscription` gesetzt, genau eine Zeile ohne Zahlungsbedingung und ohne Zahlungsweise, `invoice_portion = 100`, Fälligkeit gleich Rechnungsdatum plus `days_until_due`. Diese Zeile darf er ersetzen.
+- Danach prüft ERPNext selbst: keine doppelte Fälligkeit, Summe gleich Rechnungsbetrag (Toleranz 0,10), Fälligkeit der Rechnung gleich späteste Zeile und nicht vor dem Rechnungsdatum.
+
+### 31.3 Bearbeitung nach dem Buchen
+
+Variante A (vom Benutzer freigegeben am 01.11.2026):
+
+- ERPverein bietet an der gebuchten Rechnung die Aktionen „Zahlungsplan bearbeiten“ und „Zahlungsplan aus Mandat neu erzeugen“ an.
+- Änderbar sind nur Zeilen ohne Zahlung, ohne aktive Einzugsposition und ohne Verweis aus einer Mahnung (`Dunning`).
+- ERPverein prüft das Schreib- und Buchungsrecht auf die Rechnung und die ERPverein-Rolle.
+- Beim Ändern nach dem Buchen ruft Frappe `validate` nicht auf. ERPverein prüft deshalb selbst dieselben Regeln wie ERPNext: Summe, keine doppelte Fälligkeit, Fälligkeit nicht vor dem Rechnungsdatum. Dazu kommt: Eine Lastschriftzeile braucht ein aktives Mandat.
+- ERPverein speichert mit `flags.ignore_validate_update_after_submit`. Frappe legt dabei eine `Version` an, weil `Sales Invoice` Änderungen protokolliert.
+- Vorhandene Zeilen behalten Namen und Zahlungsbedingung. Neue Zeilen bekommen eine freie Zahlungsbedingung.
+- Die Fälligkeit der Rechnung wird auf die späteste Zeile gesetzt. `GL Entry.due_date` und `Payment Ledger Entry.due_date` behalten den Wert vom Buchen. Der Bericht `Accounts Receivable` zeigt Fälligkeiten je Zeile mit der Option „Based On Payment Terms“.
+- Jede geänderte Lastschriftzeile setzt die Vorabankündigung auf `Erneut senden`.
+- Dieselbe Funktion dient dem Nachtrag für Rechnungen, die ohne ERPverein-Plan gebucht wurden. Der Nachtrag zeigt zuerst eine Vorschau.
+
+### 31.4 Vorabankündigung und Versandnachweis
+
+- ERPNext sendet die Rechnung über die Aktion „E-Mail“ oder automatisch beim Buchen über eine `Notification` (Ereignis `Submit`). Das ERPverein-Druckformat ist der PDF-Anhang.
+- Beim Buchen ist der Zahlungsplan fertig. Die `Notification` läuft in `on_submit`, also nach `before_validate`.
+- Nachweis des Versands: eine `Communication` mit `reference_doctype = Sales Invoice`, `sent_or_received = Sent` und `communication_medium = Email`; die zugehörige `Email Queue` im Status `Sent`; im Anhang (`Email Queue.attachments`) das ERPverein-Druckformat. Zeitpunkt des Versands ist der Zeitpunkt, an dem die `Email Queue` den Status `Sent` erhielt.
+- Nur `System Manager` darf `Email Queue` lesen. Deshalb ermittelt ein Hintergrundjob den Status der Vorabankündigung und schreibt ihn an die Rechnung.
+- Die `Notification` braucht eine Bedingung, die historische Rechnungen ausschließt. Sonst versendet der Import der Historie alte Rechnungen.
+- Für einen Zahler ohne E-Mail-Adresse bestätigt der Kassenwart die Ankündigung manuell (`Manuell bestätigt`).
+
+### 31.5 Zahlungsbedingungen und Zahlungen
+
+- ERPNext führt `paid_amount` und `outstanding` einer Zeile nur, wenn die Referenz der Zahlung die `payment_term` der Zeile trägt.
+- ERPNext ändert dabei alle Zeilen der Rechnung mit derselben `payment_term`. Deshalb muss jede Zahlungsbedingung innerhalb der Rechnung eindeutig sein.
+- ERPverein setzt die `payment_term` in jeder Zahlung, die ERPverein erzeugt.
+- Eine Zahlung ohne `payment_term` (zum Beispiel manuell im Banking-Bereich) ändert die Zeilen nicht. ERPverein bestimmt den offenen Betrag einer Zeile deshalb vorsichtig: höchstens der gespeicherte offene Betrag der Zeile; nicht zugeordnete Zahlungen mindern zuerst die älteste Zeile, wie im ERPNext-Mahnwesen.
+- Höchstens 53 Lastschriftzeilen (wöchentliches Mandat, Jahresrechnung) plus eine Restzeile sind möglich. ERPverein legt die Zahlungsbedingungen „ERPverein Rate 01“ bis „ERPverein Rate 60“ an.
+
+### 31.6 Rücklastschrift und Zahlungsplanzeile
+
+- Eine Gegenbuchung (`Journal Entry`) öffnet die Rechnung wieder. Die Zahlungsplanzeile ändert ERPNext dabei nicht. Nur `Payment Entry` ändert Zeilen.
+- ERPverein öffnet die Zeile beim Buchen der Gegenbuchung selbst wieder: `paid_amount` minus Hauptbetrag, `outstanding` plus Hauptbetrag. Beim Stornieren der Gegenbuchung macht ERPverein das rückgängig. Schlüssel ist die Zahlungsbedingung aus der Einzugsposition.
+
+### 31.7 Einstellungen in ERPNext
+
+| Einstellung | Wert |
+|---|---|
+| `Accounts Settings.enable_party_matching` | `1` |
+| `Accounts Settings.enable_fuzzy_matching` | `0` |
+| `Accounts Settings.automatically_run_rules_on_unreconciled_transactions` | `1` |
+| `Accounts Settings.auto_reconcile_payments` | `0` (verteilt sonst Zahlungen über Mitglieds- und Mietvorgänge eines gemeinsamen Customers) |
+
+ERPverein ändert diese Werte nicht still per Code. ERPverein prüft sie und zeigt eine Warnung, wenn ein Wert abweicht.
+
+### 31.8 Konten
+
+| Zweck | Konto |
+|---|---|
+| Vereinskonto (Bank) | 18000 „HVB Vereinskonto“ |
+| Forderungen an Mitglieder und Mieter | 12170 |
+| Bank- und Rücklastschriftgebühren | 68550 „Nebenkosten des Geldverkehrs“ |
+| Mitgliedsbeiträge | 40000 „Mitgliedsbeiträge“ |
+| Mieten | 48611 „Mieterträge“, 48612 „Kurzfristige Mieterträge“ |
+| Rundung | 69100 |
+
+Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Die IBAN steht nur auf der Site.
+
+---
+
+## 32. Entscheidungen und Prüfergebnisse vom 01.11.2026
+
+### 32.1 Entscheidungen des Benutzers
+
+| Nr. | Entscheidung |
+|---|---|
+| E1 | Exportformat ist SEPA-XML `pain.008.001.08`. Ein CSV- oder TSV-Export für PayGate entfällt. |
+| E2 | Die Vorabankündigung ist die Rechnung mit Zahlungsplan per E-Mail. |
+| E3 | ERPverein zieht ab dem Go-live-Stichtag ein (Ziel 01.01.2027, erster Termin 31.01.2027). Davor zieht Vereinsmeister ein. |
+| E4 | Standard ist die Sammellastschrift. Eine Einzellastschrift ist im Einzelfall möglich. |
+| E5 | Der Kassenwart lädt die Datei manuell bei der HVB hoch. |
+| E6 | Bankumsätze kommen aus der Banking-Webtop (AqBanking) über n8n. |
+| E7 | Eine Rechnung gilt erst mit einem echten Bankumsatz als bezahlt. |
+| E8 | Eine Rücklastschrift ist eine Gegenbuchung. Die ursprüngliche Zahlung bleibt. |
+| E9 | ERPNext bleibt das buchhalterische System. |
+| E10 | Mieter folgen demselben Ablauf. Mitglied und Mieter haben getrennte Mandate. |
+| E11 | Der Zahlungsplan ist bearbeitbar. |
+| E12 | Die Gläubiger-ID bleibt unverändert. `AmdmntInd = false`. Die ID steht nur auf der Site. |
+| E13 | Die Frist der Vorabankündigung beträgt 14 Kalendertage. |
+| E14 | AqBanking lädt die Lastschriftdatei nicht hoch. |
+| E15 | Die Konten stehen in Kapitel 31.8. |
+| E16 | Die Zahlungsweise folgt dem Feld `abrechnungsart`. Die Stammdaten heißen „SEPA-Lastschrift“ und „Überweisung“. |
+| E17 | Die Rechnung nutzt ein Druckformat nach DIN 5008 mit Zahlungsplan. |
+| E18 | Die Bibliothek `sepaxml` ist mit fester Version erlaubt. |
+| E19 | Mieter zahlen monatlich. |
+| E20 | Fachliche Tests laufen auf einer Entwicklungs-Site. |
+| E21 | Die Produktionsbaseline gilt erst nach Release und Test durch den Benutzer. |
+| E22 | Die Historie ab 01.01.2016 läuft vor dem Release. Für die Historie gibt es keine Subscriptions. |
+| E23 | Es gibt keinen festen Release-Termin. Das Release braucht die Live-Funktionen und die Historie. |
+| E24 | Für die Historie entsteht eine Importmappe. Der Benutzer importiert sie mit n8n. |
+| E25 | ERPverein erweitert nur, was der ERPNext-Standard nicht kann. |
+| E26 | Der Verein bucht faktisch nach Zufluss (EÜR). Es braucht eine Auswertung nach Zufluss. |
+| E27 | Die alten Vereinsmeister-Konten werden auf SKR 42 übergeleitet. |
+| E28 | Die Historie bekommt Soll-Rechnungen. Quelle ist das Rechnungsbuch aus Vereinsmeister. |
+
+### 32.2 Prüfergebnisse (Kurzfassung)
+
+| Nr. | Frage | Ergebnis |
+|---|---|---|
+| P1 | Zahlungsplan bei Subscription-Rechnungen | Hook `before_validate` an `Sales Invoice` (Kapitel 31.2). |
+| P2 | Zahlungsplan einer gebuchten Rechnung ändern | Mit eigener Prüfung möglich (Kapitel 31.3). `GL Entry.due_date` und `Payment Ledger Entry.due_date` bleiben auf dem Stand vom Buchen. |
+| P3 | Zahlungsbedingungen | Eindeutige Zahlungsbedingung je Zeile; 60 app-eigene Einträge (Kapitel 31.5). |
+| P4 | Zahlungen erzeugen, buchen, abgleichen | Mit den Rechten des Benutzers; Abgleich über `reconcile_vouchers` mit Schreibrecht auf Bankumsatz und Beleg; Rollen in Kapitel 20.6. |
+| P5 | Zahlungsplanzeile nach Gegenbuchung | ERPverein öffnet die Zeile selbst (Kapitel 31.6). |
+| P6 | Felder der Bankdaten | Sammelgutschrift: Kundenreferenz, keine EndToEnd-Referenz, kein Mandat. Rückgabe: EndToEnd-Referenz und Mandat. Überweisung: IBAN, selten EndToEnd-Referenz. AqBanking liefert die Kundenreferenz nur beim MT940-Abruf, nicht beim camt-Abruf. |
+| P7 | Format und Bank | Gültig ist DFÜ-Abkommen Anlage 3 Version 3.9 (GBIC_5), ab November 2026 unter der Bezeichnung V26.11. Die Abschaltung von `pain.008.001.02` im November 2026 ist ausgesetzt; E1 bleibt richtig. Die HVB empfiehlt ab November 2026 nur noch `pain.008.001.08`. Einreichung laut HVB-Bedingungen frühestens 15 und spätestens 1 Geschäftstag vor Fälligkeit bis 07:00 Uhr (mit elektronischer Unterschrift); mit der HVB bestätigen. Anschrift des Zahlers nur für Konten außerhalb des EWR. |
+| P8 | Versand der Rechnung | Nachweis über `Communication` und `Email Queue` (Kapitel 31.4). |
+| P9 | Abgleich beim Buchen des Bankumsatzes | Ja. ERPNext verteilt vorbefüllte `payment_entries` in `before_submit`, auch beim Anlegen mit `docstatus = 1` über `frappe.client.insert_many`. Zahlungen und Buchungssätze müssen vorher gebucht sein und das Bankkonto berühren. |
+| P10 | Stapelgröße für `insert_many` | Höchstens 200 Dokumente je Aufruf. Ein Aufruf ist eine Transaktion. Die Stapelgröße wird auf der Entwicklungs-Site gemessen; Startwert 50 gebuchte Belege. |
+
+### 32.3 Antworten zu den offenen Punkten der Phase 0
+
+| Nr. | Antwort |
+|---|---|
+| Freigabe | P1 bis P10 und diese Spezifikation sind freigegeben. Für Änderungen nach dem Buchen gilt Variante A (Kapitel 31.3). |
+| Rollen | Der Verein hat einen Benutzer. Der Kassenwart erhält alle Rollen. Ein Vier-Augen-Prinzip entfällt (Kapitel 20.6, 20.7). |
+| O1 | Der Verein reicht über PayGate (HVB Corporate Portal) ein. Zuerst gibt es nur `pain.008.001.08`. Weitere Formate lassen sich über den formatneutralen Kern ergänzen. |
+| O4 | Die heutige Site dient bis zum Go-live als Test-Site. Der Benutzer betreibt die Infrastruktur (ERPNext und ERPverein). Er setzt und entfernt die E-Mail-Sperre selbst. Vor dem Go-live entsteht die produktive Site frisch. |
+| O17 | Ein Gesamtexport des Rechnungsbuchs ist nicht möglich. Berichte gibt es nur je Sammelabrechnung (derzeit 226). In Phase H wird der Bericht angepasst oder werden die Daten direkt aus der Vereinsmeister-Datenbank gelesen. |
