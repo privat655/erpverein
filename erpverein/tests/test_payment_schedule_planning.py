@@ -178,21 +178,43 @@ class TestPaymentSchedulePlanning(UnitTestCase):
         self.assertEqual(next_prenotification_status(PRENOTIFICATION_SENT, True, True), PRENOTIFICATION_RESEND)
         self.assertEqual(next_prenotification_status(PRENOTIFICATION_MANUAL, True, True), PRENOTIFICATION_RESEND)
         self.assertEqual(next_prenotification_status(PRENOTIFICATION_RESEND, True, False), PRENOTIFICATION_RESEND)
+        self.assertEqual(next_prenotification_status(None, True, True, required=False), PRENOTIFICATION_NOT_REQUIRED)
+        self.assertEqual(
+            next_prenotification_status(PRENOTIFICATION_NOT_REQUIRED, True, False, required=True), PRENOTIFICATION_PENDING
+        )
 
     def test_prenotification_readiness_requires_fresh_and_timely_email(self):
+        profile = frappe._dict(prenotification_days=14, creation="2027-01-01 00:00:00", rent_prenotification_required=0)
         doc = frappe._dict(
             company=None,
+            erpverein_billing_kind="Mitgliedsbeitrag",
             erpverein_prenotification_status=PRENOTIFICATION_SENT,
             erpverein_prenotification_sent_at="2027-01-10 09:00:00",
         )
         row = frappe._dict(erpverein_changed_at="2027-01-01 08:00:00")
 
-        self.assertEqual(get_prenotification_readiness(doc, row, date(2027, 2, 1), 14), (True, None))
-        self.assertFalse(get_prenotification_readiness(doc, row, date(2027, 1, 20), 14)[0])
+        self.assertEqual(get_prenotification_readiness(doc, row, date(2027, 2, 1), profile), (True, None))
+        self.assertFalse(get_prenotification_readiness(doc, row, date(2027, 1, 20), profile)[0])
         changed = frappe._dict(erpverein_changed_at="2027-01-11 08:00:00")
-        self.assertFalse(get_prenotification_readiness(doc, changed, date(2027, 2, 1), 14)[0])
+        self.assertFalse(get_prenotification_readiness(doc, changed, date(2027, 2, 1), profile)[0])
         pending = frappe._dict(doc, erpverein_prenotification_status=PRENOTIFICATION_PENDING)
-        self.assertFalse(get_prenotification_readiness(pending, row, date(2027, 2, 1), 14)[0])
+        self.assertFalse(get_prenotification_readiness(pending, row, date(2027, 2, 1), profile)[0])
+        before_profile = frappe._dict(profile, creation="2027-01-10 10:00:00")
+        self.assertIn("Exportprofils", get_prenotification_readiness(doc, row, date(2027, 2, 1), before_profile)[1])
+
+    def test_rent_needs_no_email_prenotification_unless_profile_requires_it(self):
+        profile = frappe._dict(prenotification_days=14, creation="2027-01-01 00:00:00", rent_prenotification_required=0)
+        rent = frappe._dict(
+            company=None,
+            erpverein_billing_kind="Miete",
+            erpverein_prenotification_status=PRENOTIFICATION_NOT_REQUIRED,
+            erpverein_prenotification_sent_at=None,
+        )
+        row = frappe._dict(erpverein_changed_at="2027-01-20 08:00:00")
+
+        self.assertEqual(get_prenotification_readiness(rent, row, date(2027, 2, 1), profile), (True, None))
+        required = frappe._dict(profile, rent_prenotification_required=1)
+        self.assertFalse(get_prenotification_readiness(rent, row, date(2027, 2, 1), required)[0])
 
     def test_prenotification_attachment_must_use_erpverein_print_format(self):
         attachment = [

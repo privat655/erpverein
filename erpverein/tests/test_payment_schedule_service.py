@@ -32,6 +32,7 @@ from erpverein.services.prenotification_service import (
     confirm_prenotification_manually,
     update_prenotification_status,
 )
+from erpverein.services.sepa_mandat_service import activate_replacement_mandate
 from erpverein.setup_data import (
     MODE_OF_PAYMENT_DIRECT_DEBIT,
     MODE_OF_PAYMENT_TRANSFER,
@@ -39,8 +40,15 @@ from erpverein.setup_data import (
     payment_term_name,
     sync_setup_data,
 )
+from erpverein.tests.collection_fixtures import ensure_export_profile
 from erpverein.tests.test_customer_sync_service import make_erpverein_manager_user
-from erpverein.tests.test_sepa_mandat_doctype import make_mieter, make_mitglied, make_rent_sepa_mandat, make_sepa_mandat
+from erpverein.tests.test_sepa_mandat_doctype import (
+    make_german_iban,
+    make_mieter,
+    make_mitglied,
+    make_rent_sepa_mandat,
+    make_sepa_mandat,
+)
 from erpverein.tests.test_subscription_generation_service import make_item
 
 
@@ -56,6 +64,7 @@ class TestPaymentScheduleService(IntegrationTestCase):
         sync_custom_fields()
         sync_setup_data()
         make_price_list()
+        cls.profile = ensure_export_profile()
 
     def test_setup_creates_payment_masters_once(self):
         sync_setup_data()
@@ -284,6 +293,7 @@ class TestPaymentScheduleService(IntegrationTestCase):
         )
         self.assertEqual(invoice.erpverein_billing_kind, "Miete")
         self.assertEqual((invoice.erpverein_payer_doctype, invoice.erpverein_payer), ("Mieter", mieter.name))
+        self.assertEqual(invoice.erpverein_prenotification_status, PRENOTIFICATION_NOT_REQUIRED)
 
     def test_sent_invoice_email_marks_prenotification_as_sent(self):
         mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
@@ -297,6 +307,35 @@ class TestPaymentScheduleService(IntegrationTestCase):
         self.assertEqual(status, PRENOTIFICATION_SENT)
         self.assertEqual(invoice.erpverein_prenotification_status, PRENOTIFICATION_SENT)
         self.assertEqual(get_datetime(invoice.erpverein_prenotification_sent_at), get_datetime(sent_at))
+
+    def test_email_before_export_profile_is_no_prenotification(self):
+        mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
+        invoice = make_member_invoice(mitglied, submit=True)
+        make_sent_invoice_email(invoice.name, PRINT_FORMAT_NAME, add_to_date(self.profile.creation, minutes=-5))
+
+        self.assertEqual(update_prenotification_status(invoice.name), PRENOTIFICATION_PENDING)
+
+    def test_mandate_replacement_requires_new_prenotification(self):
+        mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
+        invoice = make_member_invoice(mitglied, submit=True)
+        frappe.db.set_value("Sales Invoice", invoice.name, "erpverein_prenotification_status", PRENOTIFICATION_SENT)
+        replacement = make_sepa_mandat(
+            mitglied,
+            status="Entwurf",
+            mandatsreferenz=f"MR-{frappe.generate_hash(length=10)}",
+            iban=make_german_iban(),
+            einzugsintervall="Halbjaehrlich",
+            einzugstermine=[{"monat": month, "kalendertag": day, "einzugsbetrag": amount} for month, day, amount in HALF_YEARLY],
+        ).insert(ignore_permissions=True)
+        activate_replacement_mandate(replacement.name)
+
+        preview = preview_schedule_regeneration(invoice.name)
+        apply_schedule_regeneration(invoice.name, preview["preview_hash"])
+        invoice.reload()
+
+        self.assertEqual([row[:3] for row in schedule_rows(invoice)], [row[:3] for row in preview_rows(preview)])
+        self.assertEqual(invoice.erpverein_sepa_mandate, replacement.name)
+        self.assertEqual(invoice.erpverein_prenotification_status, PRENOTIFICATION_RESEND)
 
     def test_email_without_erpverein_print_format_is_no_prenotification(self):
         mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
@@ -344,6 +383,10 @@ def schedule_rows(invoice) -> list[tuple]:
         (str(row.due_date), flt(row.payment_amount), row.mode_of_payment, row.payment_term)
         for row in sorted(invoice.payment_schedule, key=lambda row: str(row.due_date))
     ]
+
+
+def preview_rows(preview: dict) -> list[tuple]:
+    return [(row["due_date"], row["payment_amount"], row["mode_of_payment"]) for row in preview["rows"]]
 
 
 def editor_rows(editor: dict) -> list[dict]:

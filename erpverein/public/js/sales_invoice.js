@@ -6,7 +6,7 @@ frappe.ui.form.on("Sales Invoice", {
         const group = __("ERPverein");
         frm.add_custom_button(__("Zahlungsplan bearbeiten"), () => erpverein_edit_payment_schedule(frm), group);
         frm.add_custom_button(__("Zahlungsplan aus Mandat neu erzeugen"), () => erpverein_regenerate_payment_schedule(frm), group);
-        if (["Ausstehend", "Erneut senden"].includes(frm.doc.erpverein_prenotification_status)) {
+        if (["Ausstehend", "Erneut senden", "Manuell bestaetigt"].includes(frm.doc.erpverein_prenotification_status)) {
             frm.add_custom_button(__("Vorabankündigung manuell bestätigen"), () => erpverein_confirm_prenotification(frm), group);
         }
     },

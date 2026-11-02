@@ -9,6 +9,9 @@ description = "ERPverein custom app for simple Vereinsverwaltung on ERPNext"
 requires-python = ">=3.14,<3.15"
 readme = "README.md"
 license = { text = "MIT" }
+dependencies = [
+    "sepaxml==2.7.0",
+]
 
 [tool.bench.frappe-dependencies]
 frappe = ">=16.0.0,<17.0.0"

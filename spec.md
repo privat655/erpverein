@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.2 vom 01.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32)  
+**Version:** 0.3 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -626,11 +626,14 @@ Vorgeschlagene Felder:
 | `bank_account` | Link `Bank Account` | ja | Geschäftskonto |
 | `bank` | Link `Bank` | ja | Hausbank |
 | `creditor_identifier` | Data | ja | SEPA-Gläubiger-ID |
+| `creditor_name` | Data | ja | Name des Gläubigers in der Datei (Kontoinhaber), nach Umwandlung höchstens 70 Zeichen |
 | `scheme` | Select | ja | zunächst `CORE`, später optional `B2B` |
 | `export_format` | Select | ja | `pain.008.001.08` (DK-TVS GBIC_5) |
 | `batch_booking_default` | Check | ja | Standard für `BtchBookg`, Standard `1` (Sammelbuchung) |
 | `lead_time_business_days` | Int | ja | Vorlauf in TARGET2-Geschäftstagen, CORE: 1 |
+| `earliest_submission_business_days` | Int | ja | Einreichung frühestens so viele TARGET2-Geschäftstage vor dem Einzug, HVB: 15 |
 | `prenotification_days` | Int | ja | Frist der Vorabankündigung in Kalendertagen, Standard 14 |
+| `rent_prenotification_required` | Check | nein | Vorabankündigung per E-Mail auch für Mieten; Standard aus (Entscheidung E30) |
 | `go_live_date` | Date | ja | Go-live-Stichtag; keine Einzugsposition für eine Fälligkeit davor |
 | `settlement_tolerance_days` | Int | ja | Toleranz zwischen Einzugsdatum und Buchungsdatum der Sammelgutschrift |
 | `max_positions_per_file` | Int | ja | konfigurierbares Dateilimit |
@@ -742,6 +745,8 @@ stateDiagram-v2
 ```
 
 Technische Optionswerte werden ASCII-kompatibel gespeichert; die UI darf deutsche Labels anzeigen.
+
+Umsetzung Phase 2: Der Lauf kennt die Status `Entwurf`, `Geprueft`, `Exportiert`, `Bankreferenz erfasst` und `Storniert`. Die übrigen Status kommen mit den Phasen 4 und 6. Ein exportierter Lauf lässt sich nur stornieren, wenn der Benutzer bestätigt, dass die Bank die Datei nicht ausführt (Kapitel 33.6).
 
 ### 10.5 Regeln
 
@@ -856,6 +861,8 @@ stateDiagram-v2
     Manuelle_Pruefung --> Rueckbelastet
 ```
 
+Umsetzung Phase 2: Die Position kennt die Status `Entwurf`, `Geprueft`, `Exportiert` und `Storniert`. Eine Position ist aktiv, solange sie nicht storniert ist (später auch nicht abgelehnt oder zurückbelastet).
+
 ### 11.5 Betragsregeln
 
 Vor Erstellung:
@@ -893,6 +900,8 @@ Mögliche Statuswerte:
 - `Erneut senden` (Lastschriftzeile nach dem Versand geändert),
 - `Manuell bestätigt` (Zahler ohne E-Mail-Adresse; der Kassenwart bestätigt).
 
+Für Mieten verlangt ERPverein keine Vorabankündigung, solange `rent_prenotification_required` im Exportprofil aus ist (Entscheidung E30). Die Mietrechnung bekommt dann den Status `Nicht erforderlich`. Eine E-Mail vor dem Anlegen des aktiven Exportprofils zählt nicht, weil ihr PDF keine Gläubiger-ID enthält.
+
 ### 11.8 Idempotenz
 
 Ein fachlicher Generierungsschlüssel muss mindestens enthalten:
@@ -903,7 +912,7 @@ Rechnung
 + Fälligkeit der Zeile
 ```
 
-Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen.
+Derselbe Schlüssel darf nur eine aktive Einzugsposition besitzen. Die Datenbank sichert das über das eindeutige Feld `active_key`: Es trägt den Schlüssel, solange die Position aktiv ist, sonst ist es leer.
 
 ### 11.9 Tasks
 
@@ -1904,7 +1913,7 @@ Der Verein hat einen Benutzer: den Kassenwart. Er erhält alle Rollen, die diese
 
 | Rolle | Wofür |
 |---|---|
-| `System Manager` | ERPverein-DocTypes (Mitglied, Mieter, SEPA-Mandat, Abrechnungen, SEPA-Einzugslauf) |
+| `System Manager` | ERPverein-DocTypes (Mitglied, Mieter, SEPA-Mandat, Abrechnungen, SEPA-Einzugslauf); für `SEPA Einzugslauf` und `SEPA Einzugsposition` nur zusammen mit `Accounts User` oder `Accounts Manager` (Berechtigungs-Hook) |
 | `Accounts Manager`, `Accounts User` | Rechnungen, Zahlungen, Buchungssätze, Bankumsätze, Storno |
 | `Sales Master Manager`, `Sales User` | Customer, Adressen und Kontakte |
 
@@ -2232,6 +2241,8 @@ Die Subscriptions erzeugen die Rechnungen 2027 am oder nach dem 01.01.2027. Das 
 
 ### Phase 2 – Einzugslauf und pain.008 (Ziel: Banktest bis 15.01.2027)
 
+Status: umgesetzt am 02.11.2026 (Kapitel 33); Upload-Test bei der HVB und Freigabe des ersten echten Einzugslaufs offen.
+
 - `SEPA Einzugslauf` und `SEPA Einzugsposition`,
 - Vorschau und idempotente Erzeugung,
 - `pain.008.001.08`-Export mit XSD-Prüfung und privater Datei,
@@ -2538,6 +2549,8 @@ Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Di
 | E26 | Der Verein bucht faktisch nach Zufluss (EÜR). Es braucht eine Auswertung nach Zufluss. |
 | E27 | Die alten Vereinsmeister-Konten werden auf SKR 42 übergeleitet. |
 | E28 | Die Historie bekommt Soll-Rechnungen. Quelle ist das Rechnungsbuch aus Vereinsmeister. |
+| E29 | Die Miete ist zum 1. des Monats fällig (O6, 02.11.2026). |
+| E30 | Mieter bekommen keine Vorabankündigung (O6, 02.11.2026). Für Mieten gilt `rent_prenotification_required = 0`. |
 
 ### 32.2 Prüfergebnisse (Kurzfassung)
 
@@ -2563,3 +2576,46 @@ Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Di
 | O1 | Der Verein reicht über PayGate (HVB Corporate Portal) ein. Zuerst gibt es nur `pain.008.001.08`. Weitere Formate lassen sich über den formatneutralen Kern ergänzen. |
 | O4 | Die heutige Site dient bis zum Go-live als Test-Site. Der Benutzer betreibt die Infrastruktur (ERPNext und ERPverein). Er setzt und entfernt die E-Mail-Sperre selbst. Vor dem Go-live entsteht die produktive Site frisch. |
 | O17 | Ein Gesamtexport des Rechnungsbuchs ist nicht möglich. Berichte gibt es nur je Sammelabrechnung (derzeit 226). In Phase H wird der Bericht angepasst oder werden die Daten direkt aus der Vereinsmeister-Datenbank gelesen. |
+| O6 | Beantwortet am 02.11.2026: Miete zum 1. des Monats; Mieter bekommen keine Vorabankündigung (E29, E30). Die Mietabrechnung erzeugt die Rechnung 14 Tage vor dem Monatsbeginn, damit sie beim Monatslauf existiert. |
+
+---
+
+## 33. Einzugslauf und pain.008 (Umsetzung Phase 2)
+
+### 33.1 Vorschau und Erzeugung
+
+1. „Fällige Lastschriften vorbereiten“ nimmt Unternehmen, Stichtag und optional Einzelbuchung.
+2. Kandidaten sind Zahlungsplanzeilen mit Zahlungsweise „SEPA-Lastschrift“, Fälligkeit zwischen Go-live-Stichtag und Stichtag, offener Zeilenbetrag größer 0, in gebuchten Rechnungen mit offenem Betrag. Der offene Zeilenbetrag folgt der Rechenweise des ERPNext-Mahnwesens (Kapitel 31.5).
+3. Einzugsdatum: nächster TARGET2-Geschäftstag ab Fälligkeit, mindestens heute plus Vorlauf plus 1 Geschäftstag. Der zusätzliche Tag hält den Annahmeschluss (07:00 Uhr am Vortag) erreichbar.
+4. Die Vorschau schreibt nichts. Jede nicht einzugsbereite Zeile hat einen Grund: Zahler oder Mandat fehlt oder geändert, Abrechnungsart nicht Lastschrift, Mandatsreferenz ungültig, IBAN ungültig oder außerhalb des EWR, Einzug nach Austritt, Mietende oder Ende des Mandatsplans, Betrag größer als der offene Rechnungsbetrag, Vorabankündigung fehlt, zu spät oder vor dem Exportprofil, Position existiert schon.
+5. Die Erzeugung rechnet die Vorschau neu und vergleicht den Vorschau-Hash. Sie sperrt die Rechnung, prüft den Generierungsschlüssel und legt jede Position in einem eigenen Savepoint an. Läufe entstehen je Einzugsdatum, geteilt nach `max_positions_per_file`.
+
+### 33.2 Prüfung
+
+„Lauf prüfen“ und der Export prüfen jede aktive Position erneut: Rechnung gebucht und offen, Zeile unverändert (Name, Zahlungsbedingung, Fälligkeit, Zahlungsweise), offener Zeilenbetrag gleich Positionsbetrag, Mandat unverändert (Mandatsreferenz, Mandatsdatum, Hash der IBAN), Einzugsdatum noch erreichbar, Vorabankündigung rechtzeitig, Verwendungszweck gültig. Fehler bleiben an der Position (`processing_error`); der Lauf bleibt oder wird `Entwurf`.
+
+### 33.3 Datei
+
+1. Writer: `sepaxml` 2.7.0 (fest gepinnt) erzeugt das Gerüst `pain.008.001.08`. ERPverein setzt danach `MsgId`, `CreDtTm`, `PmtInfId` (Name des Laufs), `BtchBookg` und `AmdmntInd = false`, entfernt `InitgPty/Id` und leere Anschriften.
+2. Prüfung: das ISO-XSD aus `sepaxml` und eigene DK-Regeln, weil das ISO-XSD zum Beispiel `MndtId` nicht verlangt: genau ein `PmtInf`, `NbOfTxs` und `CtrlSum` in Kopf und Block, eindeutige `EndToEndId`, Zeichensatz und Längen, `CORE`, `SEPA`, `SLEV`, Pflichtangaben je Lastschrift, IBAN im EWR. Das DK-Schema GBIC_5 liegt nicht bei; der Upload-Test bei der HVB ersetzt es.
+3. Zeichensatz: Umlaute werden umgeschrieben (ä → ae, ß → ss, & → +), andere Zeichen außerhalb des SEPA-Zeichensatzes werden Leerzeichen. Referenzen (`MsgId`, `PmtInfId`, `EndToEndId`, `MndtId`) dürfen keine Leerzeichen enthalten.
+4. `MsgId` = Name des Laufs plus Zeitstempel des Exports. `EndToEndId` = Name der Position. Schuldner-BIC bleibt leer (`NOTPROVIDED`); Gläubiger-BIC nur, wenn das Vereinskonto eine gültige BIC hat.
+5. Die Datei liegt privat am Lauf. Der Lauf speichert SHA-256, Zeitpunkt, Benutzer, Format und Profilversion.
+
+### 33.4 Sperren
+
+1. Eine Zahlungsplanzeile mit aktiver Einzugsposition ist gesperrt (Bearbeiten und Neuerzeugen).
+2. Eine Rechnung mit aktiver Einzugsposition lässt sich nicht stornieren.
+3. Läufe und Positionen entstehen nur über ERPverein. Vom Benutzer änderbar sind nur `notes` am Lauf und der Verwendungszweck einer Position im Status `Entwurf`. Löschen ist gesperrt; es gibt nur Storno.
+
+### 33.5 Rechte
+
+`SEPA Einzugslauf` und `SEPA Einzugsposition` gehören `System Manager`. Ein Berechtigungs-Hook (`has_permission`, `permission_query_conditions`) verlangt zusätzlich `Accounts User` oder `Accounts Manager`. Ohne diese Rolle sieht ein Benutzer weder Läufe noch Positionen noch die private Datei. Der Export verlangt zusätzlich Leserecht auf das Vereinskonto.
+
+### 33.6 Storno
+
+Vor dem Export storniert der Kassenwart einzelne Positionen oder den Lauf. Nach dem Export storniert er nur den ganzen Lauf und bestätigt, dass die Bank die Datei nicht ausführt. Die Datei bleibt zur Nachverfolgung erhalten.
+
+### 33.7 Feldnamen der Umsetzung
+
+Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für Sammelgutschrift und Rücklastschrift kommen mit den Phasen 4 und 6.

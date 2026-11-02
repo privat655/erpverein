@@ -15,13 +15,16 @@
   "bank_account",
   "profile_column_break",
   "creditor_identifier",
+  "creditor_name",
   "scheme",
   "export_format",
   "currency",
   "collection_section",
   "go_live_date",
   "prenotification_days",
+  "rent_prenotification_required",
   "lead_time_business_days",
+  "earliest_submission_business_days",
   "collection_column_break",
   "batch_booking_default",
   "settlement_tolerance_days",
@@ -82,6 +85,15 @@
    "reqd": 1
   },
   {
+   "description": "Kontoinhaber des Vereinskontos, wie er in der Lastschriftdatei steht. Hoechstens 70 Zeichen; Umlaute werden umgewandelt.",
+   "fetch_from": "company.company_name",
+   "fetch_if_empty": 1,
+   "fieldname": "creditor_name",
+   "fieldtype": "Data",
+   "label": "Name des Glaeubigers",
+   "reqd": 1
+  },
+  {
    "default": "CORE",
    "fieldname": "scheme",
    "fieldtype": "Select",
@@ -126,10 +138,26 @@
    "reqd": 1
   },
   {
+   "default": "0",
+   "description": "Aus: Fuer Mieten verlangt ERPverein keine Vorabankuendigung per E-Mail. Die Mietrechnung bekommt den Status Nicht erforderlich.",
+   "fieldname": "rent_prenotification_required",
+   "fieldtype": "Check",
+   "label": "Vorabankuendigung fuer Mieten per E-Mail"
+  },
+  {
    "default": "1",
    "fieldname": "lead_time_business_days",
    "fieldtype": "Int",
    "label": "Vorlauf (TARGET2-Geschaeftstage)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "15",
+   "description": "Die Bank nimmt die Datei fruehestens so viele TARGET2-Geschaeftstage vor dem Einzugsdatum an.",
+   "fieldname": "earliest_submission_business_days",
+   "fieldtype": "Int",
+   "label": "Einreichung fruehestens (Geschaeftstage vor Einzug)",
    "non_negative": 1,
    "reqd": 1
   },
@@ -166,7 +194,7 @@
   },
   {
    "default": "Rechnung {invoice}",
-   "description": "Platzhalter: {invoice}, {customer}, {source_id}, {period_from}, {period_to}, {collection_date}.",
+   "description": "Platzhalter: {invoice}, {customer}, {source_id}, {period_from}, {period_to}, {due_date}, {collection_date}. Hoechstens 140 Zeichen nach dem Einsetzen.",
    "fieldname": "default_purpose_template",
    "fieldtype": "Small Text",
    "label": "Vorlage fuer den Verwendungszweck"
@@ -197,7 +225,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-11-01 00:00:00.000000",
+ "modified": "2026-11-02 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Exportprofil",

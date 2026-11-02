@@ -26,6 +26,7 @@ from erpverein.services.sepa_collection_schedule_service import (
     get_schedule_config,
     nominal_occurrences,
 )
+from erpverein.services.sepa_export_profile_service import is_prenotification_required
 from erpverein.services.sepa_mandat_service import MANDATE_STATUS_ACTIVE
 from erpverein.setup_data import (
     MODE_OF_PAYMENT_DIRECT_DEBIT,
@@ -47,6 +48,7 @@ PAYER_DOCTYPES_BY_ROLE = {"Beitragszahler": "Mitglied", "Mieter": "Mieter"}
 BILLING_TYPE_DIRECT_DEBIT = "Lastschrift"
 ALLOWED_MODES = (MODE_OF_PAYMENT_DIRECT_DEBIT, MODE_OF_PAYMENT_TRANSFER)
 AMOUNT_TOLERANCE = 0.005
+COLLECTION_POSITION_DOCTYPE = "SEPA Einzugsposition"
 
 
 def plan_mandate_rows(
@@ -132,8 +134,10 @@ def schedule_fingerprint(rows) -> str:
     )
 
 
-def next_prenotification_status(current: str | None, has_direct_debit: bool, direct_debit_changed: bool) -> str:
-    if not has_direct_debit:
+def next_prenotification_status(
+    current: str | None, has_direct_debit: bool, direct_debit_changed: bool, required: bool = True
+) -> str:
+    if not has_direct_debit or not required:
         return PRENOTIFICATION_NOT_REQUIRED
     if current in {PRENOTIFICATION_SENT, PRENOTIFICATION_MANUAL}:
         return PRENOTIFICATION_RESEND if direct_debit_changed else current
@@ -360,7 +364,10 @@ def set_schedule_state(doc, *, origin: str, mandate: str | None, note: str | Non
     doc.set(
         SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME,
         next_prenotification_status(
-            doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME), has_direct_debit, direct_debit_changed
+            doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME),
+            has_direct_debit,
+            direct_debit_changed,
+            required=is_prenotification_required(doc),
         ),
     )
 
@@ -382,7 +389,21 @@ def get_locked_rows(doc) -> dict[str, str]:
     for row_name in dunned:
         if row_name:
             locked.setdefault(row_name, _("Die Zeile steht in einer Mahnung."))
+    for position in get_active_collection_positions(doc.name):
+        if position.payment_schedule_row:
+            locked.setdefault(
+                position.payment_schedule_row, _("Die Zeile steht in der Einzugsposition {0}.").format(position.name)
+            )
     return locked
+
+
+def get_active_collection_positions(invoice: str) -> list[frappe._dict]:
+    return frappe.get_all(
+        COLLECTION_POSITION_DOCTYPE,
+        filters={"sales_invoice": invoice, "active_key": ["is", "set"]},
+        fields=["name", "payment_schedule_row"],
+        order_by="name asc",
+    )
 
 
 def get_schedule_editor(invoice: str) -> dict:
@@ -547,6 +568,14 @@ def require_mandate_for_direct_debit(doc, context) -> str | None:
 def finalize_submitted_schedule(
     doc, *, origin: str, mandate: str | None, note: str | None, direct_debit_changed: bool, comment: str
 ) -> None:
+    previous_mandate = doc.get(SALES_INVOICE_SEPA_MANDATE_FIELDNAME)
+    if has_direct_debit_rows(doc) and previous_mandate and mandate and previous_mandate != mandate:
+        # The sent invoice names the old mandate; the direct debit rows need a new pre-notification.
+        now = now_datetime()
+        for row in doc.payment_schedule:
+            if row.mode_of_payment == MODE_OF_PAYMENT_DIRECT_DEBIT:
+                row.set(PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME, now)
+        direct_debit_changed = True
     set_schedule_state(doc, origin=origin, mandate=mandate, note=note, direct_debit_changed=direct_debit_changed)
     run_erpnext_schedule_checks(doc)
     doc.flags.ignore_validate_update_after_submit = True

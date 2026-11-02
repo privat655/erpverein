@@ -1,22 +1,31 @@
 import re
+from string import Formatter
 
 import frappe
 from frappe import _
 from frappe.utils import cint, cstr
 
+from erpverein.custom_fields import SALES_INVOICE_BILLING_KIND_FIELDNAME
+from erpverein.services.billing_common import BILLING_KIND_RENTAL
+from erpverein.services.pain008_writer import MAX_NAME_LENGTH, to_sepa_text
 
-DEFAULT_PRENOTIFICATION_DAYS = 14
+
+DEFAULT_PURPOSE_TEMPLATE = "Rechnung {invoice}"
+PURPOSE_PLACEHOLDERS = ("invoice", "customer", "source_id", "period_from", "period_to", "due_date", "collection_date")
 CREDITOR_IDENTIFIER_PATTERN = re.compile(r"^[A-Z]{2}[0-9]{2}[A-Z0-9]{3}[A-Z0-9]{1,28}$")
 VERSIONED_FIELDS = (
     "company",
     "bank_account",
     "creditor_identifier",
+    "creditor_name",
     "scheme",
     "export_format",
     "currency",
     "go_live_date",
     "prenotification_days",
+    "rent_prenotification_required",
     "lead_time_business_days",
+    "earliest_submission_business_days",
     "batch_booking_default",
     "settlement_tolerance_days",
     "max_positions_per_file",
@@ -26,6 +35,7 @@ VERSIONED_FIELDS = (
 MINIMUM_VALUES = (
     ("prenotification_days", 1, "Frist der Vorabankuendigung"),
     ("lead_time_business_days", 1, "Vorlauf"),
+    ("earliest_submission_business_days", 1, "Einreichung fruehestens"),
     ("max_positions_per_file", 1, "Hoechstzahl Positionen je Datei"),
 )
 RECOMMENDED_ACCOUNTS_SETTINGS = (
@@ -61,9 +71,43 @@ def validate_sepa_export_profile(doc) -> None:
     for fieldname, minimum, label in MINIMUM_VALUES:
         if cint(doc.get(fieldname)) < minimum:
             frappe.throw(_("{0} muss mindestens {1} sein.").format(_(label), minimum))
+    if cint(doc.earliest_submission_business_days) <= cint(doc.lead_time_business_days):
+        frappe.throw(_("Die Einreichung fruehestens muss mehr Geschaeftstage vor dem Einzug liegen als der Vorlauf."))
+    validate_creditor_name(doc)
+    validate_purpose_template(doc.default_purpose_template)
     validate_company_bank_account(doc)
     validate_single_active_profile(doc)
     set_profile_version(doc)
+
+
+def validate_creditor_name(doc) -> None:
+    doc.creditor_name = " ".join(cstr(doc.creditor_name).split()) or None
+    converted = to_sepa_text(doc.creditor_name, 1000)
+    if not converted:
+        frappe.throw(_("Der Name des Glaeubigers fehlt."))
+    if len(converted) > MAX_NAME_LENGTH:
+        frappe.throw(
+            _("Der Name des Glaeubigers ist nach der Umwandlung in den SEPA-Zeichensatz laenger als {0} Zeichen.").format(
+                MAX_NAME_LENGTH
+            )
+        )
+
+
+def purpose_template_placeholders(template: str | None) -> list[str]:
+    try:
+        return [field for _literal, field, _spec, _conversion in Formatter().parse(template or "") if field is not None]
+    except ValueError:
+        frappe.throw(_("Die Vorlage fuer den Verwendungszweck ist ungueltig."))
+
+
+def validate_purpose_template(template: str | None) -> None:
+    unknown = sorted(set(purpose_template_placeholders(template)) - set(PURPOSE_PLACEHOLDERS))
+    if unknown:
+        frappe.throw(
+            _("Die Vorlage fuer den Verwendungszweck enthaelt unbekannte Platzhalter: {0}").format(
+                ", ".join("{" + name + "}" for name in unknown)
+            )
+        )
 
 
 def validate_company_bank_account(doc) -> None:
@@ -105,15 +149,27 @@ def get_active_export_profile(company: str | None) -> frappe._dict | None:
     rows = frappe.get_all(
         "SEPA Exportprofil",
         filters={"company": company, "active": 1},
-        fields=["name", "creditor_identifier", "bank_account", "prenotification_days", "go_live_date"],
+        fields=[
+            "name",
+            "creation",
+            "company",
+            "creditor_identifier",
+            "creditor_name",
+            "bank_account",
+            "prenotification_days",
+            "rent_prenotification_required",
+            "go_live_date",
+        ],
         limit_page_length=1,
     )
     return rows[0] if rows else None
 
 
-def get_prenotification_days(company: str | None) -> int:
-    profile = get_active_export_profile(company)
-    return cint(profile.prenotification_days) if profile else DEFAULT_PRENOTIFICATION_DAYS
+def is_prenotification_required(doc, profile=None) -> bool:
+    if doc.get(SALES_INVOICE_BILLING_KIND_FIELDNAME) != BILLING_KIND_RENTAL:
+        return True
+    profile = profile or get_active_export_profile(doc.get("company"))
+    return not profile or bool(cint(profile.get("rent_prenotification_required")))
 
 
 def get_accounts_settings_warnings() -> list[str]:

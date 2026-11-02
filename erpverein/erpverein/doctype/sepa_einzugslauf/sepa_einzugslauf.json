@@ -1,0 +1,313 @@
+{
+ "actions": [],
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "SEPA-LAUF-.YYYY.-.#####",
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "run_section",
+  "status",
+  "company",
+  "export_profile",
+  "bank_account",
+  "run_column_break",
+  "collection_date",
+  "sequence_type",
+  "batch_booking",
+  "upload_earliest",
+  "upload_deadline",
+  "totals_section",
+  "position_count",
+  "total_amount",
+  "totals_column_break",
+  "currency",
+  "error_count",
+  "positions_section",
+  "positions_html",
+  "export_section",
+  "export_format",
+  "export_profile_version",
+  "msg_id",
+  "pmtinf_id",
+  "export_column_break",
+  "export_file",
+  "export_file_sha256",
+  "exported_at",
+  "exported_by",
+  "bank_section",
+  "bank_order_reference",
+  "bank_reference_at",
+  "bank_column_break",
+  "cancel_reason",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "run_section",
+   "fieldtype": "Section Break",
+   "label": "Einzugslauf"
+  },
+  {
+   "default": "Entwurf",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Entwurf\nGeprueft\nExportiert\nBankreferenz erfasst\nStorniert",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Unternehmen",
+   "options": "Company",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "export_profile",
+   "fieldtype": "Link",
+   "label": "SEPA-Exportprofil",
+   "options": "SEPA Exportprofil",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Vereinskonto",
+   "options": "Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "run_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "collection_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Einzugsdatum",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "RCUR",
+   "fieldname": "sequence_type",
+   "fieldtype": "Select",
+   "label": "Sequenztyp",
+   "options": "RCUR\nFRST\nOOFF\nFNAL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "batch_booking",
+   "fieldtype": "Check",
+   "label": "Sammelbuchung (BtchBookg)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "upload_earliest",
+   "fieldtype": "Date",
+   "label": "Upload bei der Bank fruehestens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "upload_deadline",
+   "fieldtype": "Date",
+   "label": "Upload bei der Bank spaetestens (07:00 Uhr)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Summen"
+  },
+  {
+   "fieldname": "position_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Positionen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Summe",
+   "no_copy": 1,
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "EUR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Waehrung",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_count",
+   "fieldtype": "Int",
+   "label": "Fehlerhafte Positionen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "positions_section",
+   "fieldtype": "Section Break",
+   "label": "Positionen"
+  },
+  {
+   "fieldname": "positions_html",
+   "fieldtype": "HTML",
+   "label": "Positionen"
+  },
+  {
+   "fieldname": "export_section",
+   "fieldtype": "Section Break",
+   "label": "Export"
+  },
+  {
+   "fieldname": "export_format",
+   "fieldtype": "Data",
+   "label": "Exportformat",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "export_profile_version",
+   "fieldtype": "Int",
+   "label": "Profilversion beim Export",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "msg_id",
+   "fieldtype": "Data",
+   "label": "MsgId",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "pmtinf_id",
+   "fieldtype": "Data",
+   "label": "PmtInfId",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "export_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "export_file",
+   "fieldtype": "Attach",
+   "label": "Exportdatei",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "export_file_sha256",
+   "fieldtype": "Data",
+   "label": "SHA-256 der Exportdatei",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "exported_at",
+   "fieldtype": "Datetime",
+   "label": "Exportiert am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "exported_by",
+   "fieldtype": "Link",
+   "label": "Exportiert von",
+   "no_copy": 1,
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_section",
+   "fieldtype": "Section Break",
+   "label": "Bank und Hinweise"
+  },
+  {
+   "fieldname": "bank_order_reference",
+   "fieldtype": "Data",
+   "label": "Bankreferenz (PayGate)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_reference_at",
+   "fieldtype": "Datetime",
+   "label": "Bankreferenz erfasst am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cancel_reason",
+   "fieldtype": "Small Text",
+   "label": "Grund der Stornierung",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Hinweise"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [
+  {
+   "link_doctype": "SEPA Einzugsposition",
+   "link_fieldname": "collection_run"
+  }
+ ],
+ "modified": "2026-11-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "SEPA Einzugslauf",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -22,6 +22,16 @@ jinja = {
     ]
 }
 
+has_permission = {
+    "SEPA Einzugslauf": "erpverein.services.sepa_collection_service.collection_has_permission",
+    "SEPA Einzugsposition": "erpverein.services.sepa_collection_service.collection_has_permission",
+}
+
+permission_query_conditions = {
+    "SEPA Einzugslauf": "erpverein.services.sepa_collection_service.collection_query_conditions",
+    "SEPA Einzugsposition": "erpverein.services.sepa_collection_service.collection_query_conditions",
+}
+
 doc_events = {
     "Bank Account": {
         "validate": "erpverein.services.sepa_mandat_service.validate_bank_account_provenance",
@@ -45,6 +55,7 @@ doc_events = {
     },
     "Sales Invoice": {
         "validate": "erpverein.services.payment_schedule_service.apply_payment_schedule",
+        "before_cancel": "erpverein.services.sepa_collection_service.prevent_invoice_cancel_with_active_positions",
     },
 }
 

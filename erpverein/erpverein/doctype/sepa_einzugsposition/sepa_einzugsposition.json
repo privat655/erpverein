@@ -1,0 +1,300 @@
+{
+ "actions": [],
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "SEPA-POS-.YYYY.-.#######",
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "position_section",
+  "collection_run",
+  "status",
+  "billing_kind",
+  "source_doctype",
+  "source_name",
+  "customer",
+  "position_column_break",
+  "sales_invoice",
+  "payment_schedule_row",
+  "payment_term",
+  "due_date",
+  "collection_date",
+  "amount",
+  "currency",
+  "sepa_section",
+  "sepa_mandate",
+  "mandate_reference_snapshot",
+  "mandate_date_snapshot",
+  "debtor_iban_masked",
+  "prenotification_sent_at",
+  "sepa_column_break",
+  "end_to_end_reference",
+  "sequence_type",
+  "purpose",
+  "processing_section",
+  "processing_error",
+  "cancel_reason",
+  "processing_column_break",
+  "generation_key",
+  "active_key",
+  "debtor_iban_hash"
+ ],
+ "fields": [
+  {
+   "fieldname": "position_section",
+   "fieldtype": "Section Break",
+   "label": "Einzugsposition"
+  },
+  {
+   "fieldname": "collection_run",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Einzugslauf",
+   "options": "SEPA Einzugslauf",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Entwurf",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Entwurf\nGeprueft\nExportiert\nStorniert",
+   "read_only": 1
+  },
+  {
+   "fieldname": "billing_kind",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Abrechnungsart",
+   "options": "\nMitgliedsbeitrag\nMiete",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "label": "Zahlertyp",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Zahler",
+   "options": "source_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Kunde",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "position_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rechnung",
+   "options": "Sales Invoice",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "payment_schedule_row",
+   "fieldtype": "Data",
+   "label": "Zahlungsplanzeile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_term",
+   "fieldtype": "Link",
+   "label": "Zahlungsbedingung",
+   "options": "Payment Term",
+   "read_only": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Faelligkeit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collection_date",
+   "fieldtype": "Date",
+   "label": "Einzugsdatum",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Betrag",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "default": "EUR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Waehrung",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sepa_section",
+   "fieldtype": "Section Break",
+   "label": "Lastschrift"
+  },
+  {
+   "fieldname": "sepa_mandate",
+   "fieldtype": "Link",
+   "label": "SEPA-Mandat",
+   "options": "SEPA Mandat",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mandate_reference_snapshot",
+   "fieldtype": "Data",
+   "label": "Mandatsreferenz",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mandate_date_snapshot",
+   "fieldtype": "Date",
+   "label": "Mandatsdatum",
+   "read_only": 1
+  },
+  {
+   "fieldname": "debtor_iban_masked",
+   "fieldtype": "Data",
+   "label": "IBAN des Zahlers",
+   "read_only": 1
+  },
+  {
+   "fieldname": "prenotification_sent_at",
+   "fieldtype": "Datetime",
+   "label": "Vorabankuendigung versendet am",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sepa_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "end_to_end_reference",
+   "fieldtype": "Data",
+   "label": "End-to-End-Referenz",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "default": "RCUR",
+   "fieldname": "sequence_type",
+   "fieldtype": "Select",
+   "label": "Sequenztyp",
+   "options": "RCUR\nFRST\nOOFF\nFNAL",
+   "read_only": 1
+  },
+  {
+   "description": "Hoechstens 140 Zeichen. Aenderbar, solange Lauf und Position im Status Entwurf sind.",
+   "fieldname": "purpose",
+   "fieldtype": "Small Text",
+   "label": "Verwendungszweck"
+  },
+  {
+   "fieldname": "processing_section",
+   "fieldtype": "Section Break",
+   "label": "Pruefung"
+  },
+  {
+   "fieldname": "processing_error",
+   "fieldtype": "Small Text",
+   "label": "Pruefergebnis",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cancel_reason",
+   "fieldtype": "Small Text",
+   "label": "Grund der Stornierung",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "processing_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "generation_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Generierungsschluessel",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "active_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Aktiver Schluessel",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "debtor_iban_hash",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "IBAN-Hash",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-11-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "SEPA Einzugsposition",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "search_fields": "sales_invoice,source_name,customer",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

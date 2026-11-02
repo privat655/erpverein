@@ -19,7 +19,7 @@ from erpverein.services.payment_schedule_service import (
     has_direct_debit_rows,
 )
 from erpverein.services.sepa_collection_schedule_service import next_target_business_day
-from erpverein.services.sepa_export_profile_service import get_active_export_profile, get_prenotification_days
+from erpverein.services.sepa_export_profile_service import get_active_export_profile, is_prenotification_required
 from erpverein.services.sepa_mandat_service import normalize_iban
 from erpverein.setup_data import MODE_OF_PAYMENT_DIRECT_DEBIT
 
@@ -34,13 +34,14 @@ def refresh_prenotification_status() -> None:
         "Sales Invoice",
         filters={
             "docstatus": 1,
+            "outstanding_amount": [">", 0],
             SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME: ["in", [PRENOTIFICATION_PENDING, PRENOTIFICATION_RESEND]],
         },
         pluck="name",
         order_by="modified asc",
         limit_page_length=REFRESH_BATCH_SIZE,
     )
-    for invoice in invoices:
+    for invoice in dict.fromkeys(invoices + get_invoices_notified_before_profile()):
         savepoint = f"erpverein_prenotification_{frappe.generate_hash(length=12)}"
         frappe.db.savepoint(savepoint)
         try:
@@ -54,12 +55,42 @@ def refresh_prenotification_status() -> None:
             frappe.log_error(title=f"ERPverein prenotification refresh failed: {invoice}", message=frappe.get_traceback())
 
 
+def get_invoices_notified_before_profile() -> list[str]:
+    # A pre-notification sent before the export profile existed shows no creditor identifier.
+    invoices = []
+    for profile in frappe.get_all("SEPA Exportprofil", filters={"active": 1}, fields=["company", "creation"]):
+        invoices += frappe.get_all(
+            "Sales Invoice",
+            filters={
+                "docstatus": 1,
+                "company": profile.company,
+                "outstanding_amount": [">", 0],
+                SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME: ["in", [PRENOTIFICATION_SENT, PRENOTIFICATION_MANUAL]],
+                SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME: ["<", profile.creation],
+            },
+            pluck="name",
+            order_by="modified asc",
+            limit_page_length=REFRESH_BATCH_SIZE,
+        )
+    return invoices
+
+
+def is_notified_before_profile(doc, profile) -> bool:
+    sent_at = doc.get(SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME)
+    return bool(profile and sent_at and get_datetime(sent_at) < get_datetime(profile.creation))
+
+
 def update_prenotification_status(invoice: str) -> str | None:
     doc = frappe.get_doc("Sales Invoice", invoice)
     status = doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME)
-    if status not in {PRENOTIFICATION_PENDING, PRENOTIFICATION_RESEND}:
+    profile = get_active_export_profile(doc.company)
+    if status not in {PRENOTIFICATION_PENDING, PRENOTIFICATION_RESEND} and not (
+        status in {PRENOTIFICATION_SENT, PRENOTIFICATION_MANUAL} and is_notified_before_profile(doc, profile)
+    ):
         return status
-    sent_at = get_last_prenotification_sent_at(invoice)
+    if not profile:
+        return status
+    sent_at = get_last_prenotification_sent_at(invoice, not_before=profile.creation)
     changed_at = last_direct_debit_change(doc)
     if not sent_at or (changed_at and sent_at <= changed_at):
         return status
@@ -75,7 +106,7 @@ def update_prenotification_status(invoice: str) -> str | None:
     return PRENOTIFICATION_SENT
 
 
-def get_last_prenotification_sent_at(invoice: str):
+def get_last_prenotification_sent_at(invoice: str, not_before=None):
     communications = frappe.get_all(
         "Communication",
         filters={
@@ -93,7 +124,12 @@ def get_last_prenotification_sent_at(invoice: str):
         filters={"communication": ["in", communications], "status": EMAIL_QUEUE_STATUS_SENT},
         fields=["modified", "attachments"],
     )
-    sent = [get_datetime(queue.modified) for queue in queues if has_prenotification_attachment(queue.attachments, invoice)]
+    sent = [
+        get_datetime(queue.modified)
+        for queue in queues
+        if has_prenotification_attachment(queue.attachments, invoice)
+        and (not not_before or get_datetime(queue.modified) > get_datetime(not_before))
+    ]
     return max(sent) if sent else None
 
 
@@ -141,15 +177,21 @@ def confirm_prenotification_manually(invoice: str) -> dict:
     return {"invoice": invoice, "status": PRENOTIFICATION_MANUAL, "confirmed_at": str(confirmed_at)}
 
 
-def get_prenotification_readiness(doc, row, collection_date, prenotification_days: int | None = None) -> tuple[bool, str | None]:
+def get_prenotification_readiness(doc, row, collection_date, profile=None) -> tuple[bool, str | None]:
+    profile = profile or get_active_export_profile(doc.company)
+    if not profile:
+        return False, _("Es gibt kein aktives SEPA-Exportprofil.")
+    if not is_prenotification_required(doc, profile):
+        return True, None
     sent_at = doc.get(SALES_INVOICE_PRENOTIFICATION_SENT_AT_FIELDNAME)
     if doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME) not in {PRENOTIFICATION_SENT, PRENOTIFICATION_MANUAL} or not sent_at:
         return False, _("Die Vorabankuendigung fehlt.")
+    if is_notified_before_profile(doc, profile):
+        return False, _("Die Vorabankuendigung liegt vor dem Anlegen des Exportprofils. Sende die Rechnung erneut.")
     changed_at = row.get(PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME)
     if changed_at and get_datetime(sent_at) <= get_datetime(changed_at):
         return False, _("Die Zeile wurde nach der Vorabankuendigung geaendert.")
-    days = get_prenotification_days(doc.company) if prenotification_days is None else cint(prenotification_days)
-    if getdate(sent_at) > getdate(add_days(collection_date, -days)):
+    if getdate(sent_at) > getdate(add_days(collection_date, -cint(profile.prenotification_days))):
         return False, _("Die Vorabankuendigung kommt zu spaet.")
     return True, None
 

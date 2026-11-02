@@ -16,7 +16,7 @@ class TestVereinsverwaltungWorkspace(UnitTestCase):
 			/ "vereinsverwaltung"
 			/ "vereinsverwaltung.json"
 		)
-		workspace = json.loads(workspace_path.read_text())
+		workspace = json.loads(workspace_path.read_text(encoding="utf-8"))
 
 		self.assertEqual(workspace["name"], "Vereinsverwaltung")
 		self.assertEqual(workspace["title"], "Vereinsverwaltung")
@@ -28,14 +28,18 @@ class TestVereinsverwaltungWorkspace(UnitTestCase):
 		self.assertEqual(links["Mieter"]["label"], "Mieter")
 		self.assertEqual(links["SEPA Mandat"]["label"], "SEPA-Mandate")
 		self.assertEqual(links["SEPA Exportprofil"]["label"], "SEPA-Exportprofile")
+		self.assertEqual(links["SEPA Einzugslauf"]["label"], "SEPA-Einzugsläufe")
+		self.assertEqual(links["SEPA Einzugsposition"]["label"], "SEPA-Einzugspositionen")
 		self.assertEqual(links["Beitragsabrechnung"]["label"], "Beitragsabrechnungen")
 		self.assertEqual(links["Mietabrechnung"]["label"], "Mietabrechnungen")
 		self.assertEqual(links[REPORT_NAME]["link_type"], "Report")
 		self.assertEqual(links[REPORT_NAME]["is_query_report"], 1)
+		card = next(link for link in workspace["links"] if link["type"] == "Card Break")
+		self.assertEqual(card["link_count"], len([link for link in workspace["links"] if link["type"] == "Link"]))
 
 	def test_workspace_sidebar_json_defines_vereinsverwaltung_for_app(self):
 		sidebar_path = Path(__file__).resolve().parents[1] / "workspace_sidebar" / "vereinsverwaltung.json"
-		sidebar = json.loads(sidebar_path.read_text())
+		sidebar = json.loads(sidebar_path.read_text(encoding="utf-8"))
 
 		self.assertEqual(sidebar["name"], "Vereinsverwaltung")
 		self.assertEqual(sidebar["title"], "Vereinsverwaltung")
@@ -49,6 +53,8 @@ class TestVereinsverwaltungWorkspace(UnitTestCase):
 		self.assertEqual(links["Mieter"]["label"], "Mieter")
 		self.assertEqual(links["SEPA Mandat"]["label"], "SEPA-Mandate")
 		self.assertEqual(links["SEPA Exportprofil"]["label"], "SEPA-Exportprofile")
+		self.assertEqual(links["SEPA Einzugslauf"]["label"], "SEPA-Einzugsläufe")
+		self.assertEqual(links["SEPA Einzugsposition"]["label"], "SEPA-Einzugspositionen")
 		self.assertEqual(links["Beitragsabrechnung"]["label"], "Beitragsabrechnungen")
 		self.assertEqual(links["Mietabrechnung"]["label"], "Mietabrechnungen")
 		self.assertEqual(links[REPORT_NAME]["link_type"], "Report")
