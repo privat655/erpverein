@@ -1,8 +1,9 @@
 import json
+from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
-from frappe.utils import add_to_date, flt, get_datetime, now_datetime
+from frappe.utils import add_to_date, flt, get_datetime, getdate, now_datetime
 
 from erpverein.custom_fields import (
     SUBSCRIPTION_BILLING_KIND_FIELDNAME,
@@ -11,6 +12,7 @@ from erpverein.custom_fields import (
     SUBSCRIPTION_SOURCES_FIELDNAME,
     sync_custom_fields,
 )
+from erpverein.services import prenotification_service
 from erpverein.services.payment_schedule_service import (
     ORIGIN_EDITED,
     ORIGIN_MANDATE,
@@ -37,6 +39,7 @@ from erpverein.setup_data import (
     payment_term_name,
     sync_setup_data,
 )
+from erpverein.tests.test_customer_sync_service import make_erpverein_manager_user
 from erpverein.tests.test_sepa_mandat_doctype import make_mieter, make_mitglied, make_rent_sepa_mandat, make_sepa_mandat
 from erpverein.tests.test_subscription_generation_service import make_item
 
@@ -135,7 +138,7 @@ class TestPaymentScheduleService(IntegrationTestCase):
         mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
         invoice = make_member_invoice(mitglied)
 
-        invoice.payment_schedule[1].due_date = "2027-10-15"
+        invoice.payment_schedule[1].due_date = getdate("2027-10-15")
         invoice.save()
         invoice.submit()
         invoice.reload()
@@ -214,6 +217,48 @@ class TestPaymentScheduleService(IntegrationTestCase):
             [("2027-03-31", 175.0, MODE_OF_PAYMENT_DIRECT_DEBIT), ("2027-09-30", 175.0, MODE_OF_PAYMENT_DIRECT_DEBIT)],
         )
 
+    def test_unchanged_regeneration_keeps_sent_prenotification(self):
+        mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
+        invoice = make_member_invoice(mitglied, submit=True)
+        stamps = [str(row.erpverein_changed_at) for row in invoice.payment_schedule]
+        frappe.db.set_value("Sales Invoice", invoice.name, "erpverein_prenotification_status", PRENOTIFICATION_SENT)
+
+        preview = preview_schedule_regeneration(invoice.name)
+        apply_schedule_regeneration(invoice.name, preview["preview_hash"])
+        invoice.reload()
+
+        self.assertEqual(invoice.erpverein_prenotification_status, PRENOTIFICATION_SENT)
+        self.assertEqual([str(row.erpverein_changed_at) for row in invoice.payment_schedule], stamps)
+
+    def test_treasurer_without_administrator_can_edit_submitted_schedule(self):
+        mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
+        invoice = make_member_invoice(mitglied, submit=True)
+        user = make_erpverein_manager_user()
+        try:
+            frappe.set_user(user.name)
+            editor = get_schedule_editor(invoice.name)
+            rows = editor_rows(editor)
+            rows[1]["due_date"] = "2027-10-30"
+            update_submitted_schedule(invoice.name, json.dumps(rows), editor["modified"])
+        finally:
+            frappe.set_user("Administrator")
+        invoice.reload()
+
+        self.assertEqual(invoice.erpverein_schedule_origin, ORIGIN_EDITED)
+        self.assertEqual(str(invoice.due_date), "2027-10-30")
+
+    def test_user_without_accounts_role_cannot_edit_submitted_schedule(self):
+        mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
+        invoice = make_member_invoice(mitglied, submit=True)
+        editor = get_schedule_editor(invoice.name)
+        user = make_user_with_roles("Sales User", "Sales Master Manager")
+        try:
+            frappe.set_user(user.name)
+            with self.assertRaises(frappe.PermissionError):
+                update_submitted_schedule(invoice.name, json.dumps(editor_rows(editor)), editor["modified"])
+        finally:
+            frappe.set_user("Administrator")
+
     def test_rent_invoice_uses_monthly_tenant_mandate(self):
         customer = make_eur_customer("Schedule Rent")
         mieter = make_mieter(customer=customer.name)
@@ -259,6 +304,29 @@ class TestPaymentScheduleService(IntegrationTestCase):
         make_sent_invoice_email(invoice.name, "Standard", add_to_date(now_datetime(), minutes=5))
 
         self.assertEqual(update_prenotification_status(invoice.name), PRENOTIFICATION_PENDING)
+
+    def test_prenotification_refresh_continues_after_failed_invoice(self):
+        failing_member, _mandate = make_direct_debit_member(HALF_YEARLY)
+        failing = make_member_invoice(failing_member, submit=True)
+        sent_member, _mandate = make_direct_debit_member(HALF_YEARLY)
+        sent = make_member_invoice(sent_member, submit=True)
+        make_sent_invoice_email(sent.name, PRINT_FORMAT_NAME, add_to_date(now_datetime(), minutes=5))
+        update_status = prenotification_service.update_prenotification_status
+
+        def fail_for_one_invoice(invoice):
+            if invoice == failing.name:
+                raise frappe.ValidationError("synthetic failure")
+            return update_status(invoice)
+
+        with patch.object(prenotification_service, "update_prenotification_status", side_effect=fail_for_one_invoice):
+            prenotification_service.refresh_prenotification_status()
+
+        self.assertEqual(
+            frappe.db.get_value("Sales Invoice", sent.name, "erpverein_prenotification_status"), PRENOTIFICATION_SENT
+        )
+        self.assertEqual(
+            frappe.db.get_value("Sales Invoice", failing.name, "erpverein_prenotification_status"), PRENOTIFICATION_PENDING
+        )
 
     def test_prenotification_can_be_confirmed_manually(self):
         mitglied, _mandate = make_direct_debit_member(HALF_YEARLY)
@@ -379,6 +447,21 @@ def make_eur_customer(label: str):
     if territory:
         customer.territory = territory
     return customer.insert(ignore_permissions=True)
+
+
+def make_user_with_roles(*roles: str):
+    user = frappe.get_doc(
+        {
+            "doctype": "User",
+            "email": f"erpverein-schedule-{frappe.generate_hash(length=8)}@example.org",
+            "first_name": "ERPverein",
+            "last_name": "Schedule",
+            "enabled": 1,
+            "send_welcome_email": 0,
+        }
+    ).insert(ignore_permissions=True)
+    user.add_roles(*roles)
+    return user
 
 
 def make_sent_invoice_email(invoice: str, print_format: str, sent_at) -> None:

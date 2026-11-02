@@ -68,6 +68,11 @@ Wieder in ERPNext:
    - `Connected App`: der Eintrag von oben; `Connected User`: dein ERPNext-Benutzer
    - Eingehende E-Mails: aus
 4. Sende einen Test an deine eigene Adresse.
+5. Prüfe die Absenderdomain des Vereins:
+   - SPF: Der DNS-Eintrag der Domain enthält `include:spf.protection.outlook.com`.
+   - DKIM: Die DKIM-Signatur für die Domain ist im Microsoft Defender-Portal eingeschaltet.
+
+**HINWEIS:** Ohne SPF und DKIM landen Rechnungen oft im Spam. Dann fehlt die Vorabankündigung beim Zahler.
 
 ### 1.4 Briefkopf und Druckformat
 
@@ -114,6 +119,8 @@ Wieder in ERPNext:
 3. Lege es sonst an: 01.01.2027 bis 31.12.2027.
 
 ### 1.9 Automatischer Versand beim Buchen
+
+**VORSICHT:** Lege die `Notification` erst an, wenn Briefkopf (1.4), Firmen-Bankkonto (1.5) und SEPA-Exportprofil (1.6) fertig sind. Sonst fehlen Gläubiger-ID und Vereinskonto im PDF. ERPverein zählt die E-Mail trotzdem als Vorabankündigung.
 
 1. Lege eine `Notification` an:
    - Dokumenttyp: `Sales Invoice`; Senden bei: `Submit`; Kanal: E-Mail

@@ -10,6 +10,7 @@ from erpverein.custom_fields import (
     SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME,
     SALES_INVOICE_SEPA_MANDATE_FIELDNAME,
 )
+from erpverein.services.billing_common import is_retryable_error
 from erpverein.services.payment_schedule_service import (
     PRENOTIFICATION_MANUAL,
     PRENOTIFICATION_PENDING,
@@ -40,7 +41,17 @@ def refresh_prenotification_status() -> None:
         limit_page_length=REFRESH_BATCH_SIZE,
     )
     for invoice in invoices:
-        update_prenotification_status(invoice)
+        savepoint = f"erpverein_prenotification_{frappe.generate_hash(length=12)}"
+        frappe.db.savepoint(savepoint)
+        try:
+            update_prenotification_status(invoice)
+            frappe.db.release_savepoint(savepoint)
+        except Exception as exc:
+            if is_retryable_error(exc):
+                raise
+            frappe.db.rollback(save_point=savepoint)
+            frappe.db.release_savepoint(savepoint)
+            frappe.log_error(title=f"ERPverein prenotification refresh failed: {invoice}", message=frappe.get_traceback())
 
 
 def update_prenotification_status(invoice: str) -> str | None:

@@ -18,7 +18,7 @@ from erpverein.custom_fields import (
     SUBSCRIPTION_MANAGED_FIELDNAME,
     SUBSCRIPTION_SOURCES_FIELDNAME,
 )
-from erpverein.services.billing_common import stable_hash
+from erpverein.services.billing_common import is_retryable_error, stable_hash
 from erpverein.services.sepa_collection_schedule_service import (
     INTERVAL_MONTHLY,
     INTERVAL_WEEKLY,
@@ -618,18 +618,15 @@ def apply_schedule_regeneration(invoice: str, preview_hash: str, comment: str | 
     if preview["preview_hash"] != preview_hash:
         frappe.throw(_("Die Vorschau ist veraltet. Bitte neu erzeugen."))
 
-    had_direct_debit = has_direct_debit_rows(doc)
+    previous_rows = list(doc.payment_schedule)
     replace_schedule_rows(doc, preview["rows"])
     assign_payment_terms(doc.payment_schedule)
-    now = now_datetime()
-    for row in doc.payment_schedule:
-        row.set(PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME, now)
     finalize_submitted_schedule(
         doc,
         origin=preview["origin"],
         mandate=preview["mandate"],
         note=preview["note"],
-        direct_debit_changed=had_direct_debit or has_direct_debit_rows(doc),
+        direct_debit_changed=stamp_changed_rows(doc, previous_rows),
         comment=comment or _("Zahlungsplan aus dem Mandat neu erzeugt."),
     )
     return {"invoice": doc.name, "prenotification_status": doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME)}
@@ -675,7 +672,9 @@ def apply_schedule_backfill(preview_hash: str, limit: int = 200) -> dict:
             apply_schedule_regeneration(item["invoice"], item["preview_hash"], comment=_("Zahlungsplan nachgetragen."))
             frappe.db.release_savepoint(savepoint)
             result["applied"] += 1
-        except Exception:
+        except Exception as exc:
+            if is_retryable_error(exc):
+                raise
             frappe.db.rollback(save_point=savepoint)
             frappe.db.release_savepoint(savepoint)
             frappe.log_error(title=f"ERPverein schedule backfill failed: {item['invoice']}", message=frappe.get_traceback())
