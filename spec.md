@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.3 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33)  
+**Version:** 0.4 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -426,16 +426,11 @@ Vorhanden sind:
 
 ### 6.9 Noch nicht implementiert
 
+Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34).
+
 Noch nicht vorhanden sind:
 
 - eingebettete Subscription-, Rechnungs- und Zahlungsansichten in Mitglied und Mieter,
-- Zahlungsplan aus dem Mandatsplan und seine Bearbeitung,
-- Vorabankündigung per Rechnung mit Zahlungsplan,
-- Einzugsläufe und Einzugspositionen,
-- `pain.008.001.08`-Export,
-- End-to-End-Referenzen je Einzugsposition,
-- Bankimport der AqBanking-CSV über n8n,
-- belastbarer Duplikatschutz für Kontoauszüge,
 - automatische Zuordnung von Sammelgutschriften,
 - Payment-Entry-Erzeugung je Einzugsposition,
 - Selbstüberweiser-Matching,
@@ -1113,7 +1108,7 @@ Kontoauszüge werden als maschinenlesbarer Export importiert.
 Die laufende Quelle ist die AqBanking-CSV (`aqbanking-cli listtrans`) mit einem Manifest. Die Banking-Webtop sendet beides an einen n8n-Webhook. n8n ruft genau eine ERPverein-Methode auf und übergibt Manifest und Datei unverändert. n8n parst keine Zeilen und läuft nicht in einer Schleife pro Umsatz. Der Parser ist versioniert:
 
 - `aqbanking-listtrans-default-v2`: Standardvorlage von AqBanking, tabulatorgetrennt, ohne Kopfzeile,
-- `aqbanking-listtrans-template-v3`: erweiterte Vorlage mit Kopfzeile und SEPA-Feldern (Freigabe durch den Benutzer ausstehend).
+- `aqbanking-listtrans-template-v3`: erweiterte Vorlage mit Kopfzeile und SEPA-Feldern. ERPverein liest sie seit Phase 3; die Umstellung der Banking-Webtop wartet auf die Freigabe des Benutzers (O7, Kapitel 34.8).
 
 Der laufende Import übernimmt nur Bankumsätze ab dem Go-live-Stichtag.
 
@@ -1183,6 +1178,8 @@ Felder:
 | `parser_version` | Data | Parser-Version |
 | `error_report` | Attach | private, bereinigte Fehlerdatei |
 
+> **Umsetzung (Phase 3):** Status `Entwurf`, `Importiert`, `Teilfehler`, `Fehler`; einen beobachtbaren Status `Validiert` gibt es nicht, weil Prüfung und Import in einem Aufruf laufen. Statt `error_report` hält die Kindtabelle `import_errors` (`ERPverein Bankimport Fehler`: Zeile, Fehlercode, maskierte Meldung) die Fehler; dazu `error_message` für Fehler der ganzen Datei. Weitere Felder: `account_alias`, `manifest_created_at`, `period_from`, `period_to`, `overlap_days`, `go_live_date`, `before_go_live_count`, `zero_amount_count`, `reconciled_count`, `unreconciled_count`, `source_encoding`, `column_fill`, `manifest_json`, `notes`. Einzelheiten in Kapitel 34.
+
 ### 14.4 Kanonisches Importmodell
 
 Jede Quellzeile wird zunächst in ein internes Modell normalisiert:
@@ -1228,6 +1225,8 @@ Codeverwaltete Custom Fields:
 
 Der Originaltext bleibt im Standardfeld `description` oder in der privaten Quelldatei. Er wird nicht zusätzlich in Logs dupliziert.
 
+> **Umsetzung (Phase 3):** Zusätzlich `erpverein_customer_reference` (Kundenreferenz). `erpverein_source_modified_at` entfällt, weil AqBanking keinen Änderungszeitpunkt liefert. `erpverein_bank_category` und `erpverein_match_status` sind Select-Felder mit `allow_on_submit`. Am `Bank Account` kommt `erpverein_bank_import_alias` hinzu (Kapitel 34.3).
+
 ### 14.6 Klassifikation
 
 Erste Kategorien:
@@ -1252,6 +1251,8 @@ Die Klassifikation nutzt gemeinsam:
 - Textschlüssel,
 - SEPA-Felder,
 - Beschreibung.
+
+> **Umsetzung (Phase 3):** Die Werte heißen deutsch: `Ueberweisung eingehend`, `Dauerauftrag eingehend`, `Echtzeitueberweisung eingehend`, `Ueberweisung ausgehend`, `Dauerauftrag ausgehend`, `Lastschrift ausgehend`, `Lastschrift-Gutschrift` (Sammel- oder Einzelgutschrift eigener Lastschriften), `Lastschrift-Rueckgabe (Reject)`, `Ruecklastschrift`, `Bankgebuehr`, `Sonstiges`, `Manuelle Pruefung`. Regeln in Kapitel 34.6. Die Kategorie ist ein Hinweis; sie bucht nichts.
 
 ### 14.7 Duplikatschutz
 
@@ -1282,6 +1283,8 @@ Bankkonto
 ```
 
 Der Änderungszeitpunkt ist nicht Teil der Identität.
+
+> **Umsetzung (Phase 3):** Der Fingerprint nutzt nur Felder, die beide Profile liefern: Konto-IBAN, Buchungsdatum, vorzeichenbehafteter Betrag, IBAN und Name der Gegenseite, Verwendungszweck (normalisiert, ohne Groß- und Kleinschreibung) und die laufende Nummer gleicher Zeilen in der Datei. So erkennt ERPverein auch beim Wechsel von `v2` auf `v3` dieselben Umsätze. Gleiche Umsätze am selben Tag bleiben getrennt (Kapitel 34.4).
 
 #### Wiederholungsimport
 
@@ -1919,7 +1922,9 @@ Der Verein hat einen Benutzer: den Kassenwart. Er erhält alle Rollen, die diese
 
 ERPverein führt keine eigenen Rollen ein. ERPverein prüft trotzdem jede Berechtigung und umgeht keine Rechte. Die Tests prüfen auch Benutzer mit weniger Rollen.
 
-n8n nutzt einen eigenen API-Benutzer. Hintergrundjobs laufen mit dem Benutzer, der sie eingereiht hat. Der API-Benutzer braucht deshalb die Rollen für Bankimport und Abgleich. Die genaue Liste legt Phase 3 fest.
+n8n nutzt einen eigenen API-Benutzer. Hintergrundjobs laufen mit dem Benutzer, der sie eingereiht hat. Der API-Benutzer braucht deshalb die Rollen für Bankimport und Abgleich.
+
+Festlegung Phase 3: Der API-Benutzer hat nur `Accounts User`. Damit legt er `ERPverein Bankimport` und `File` an und bucht `Bank Transaction`; er liest das Vereinskonto. Ein Benutzer ohne `Accounts User` oder `Accounts Manager` sieht keine Bankimporte und keine Originaldatei, auch mit `System Manager`. Phase 4 prüft, welche Rollen der Abgleich zusätzlich braucht.
 
 ### 20.7 Vier-Augen-Prinzip
 
@@ -2254,6 +2259,8 @@ Status: umgesetzt am 02.11.2026 (Kapitel 33); Upload-Test bei der HVB und Freiga
 Der erste echte Einzugslauf braucht die Freigabe des Benutzers.
 
 ### Phase 3 – Bankimport (vor dem Release)
+
+Status: umgesetzt am 02.11.2026 (Kapitel 34); Freigabe der Webtop-Erweiterung (O7) und ein echter Abruf offen.
 
 - `ERPverein Bankimport` und Custom Fields an `Bank Transaction`,
 - Erweiterung des AqBanking-Exports (nach Freigabe des Benutzers),
@@ -2619,3 +2626,75 @@ Vor dem Export storniert der Kassenwart einzelne Positionen oder den Lauf. Nach 
 ### 33.7 Feldnamen der Umsetzung
 
 Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für Sammelgutschrift und Rücklastschrift kommen mit den Phasen 4 und 6.
+
+---
+
+## 34. Bankimport (Umsetzung Phase 3)
+
+### 34.1 Schnittstelle für n8n
+
+1. n8n ruft genau eine Methode auf: `POST /api/method/erpverein.api.bank_import.import_statement`, `multipart/form-data` mit den unveränderten Teilen `manifest` (Datei oder Text) und `transactions` (Datei). n8n parst nichts.
+2. Grenzen: Manifest höchstens 64 KB, Datei höchstens 5 MB und 5.000 Zeilen.
+3. Das Manifest braucht `schema` (`erpverein.aqbanking.listtrans-default.v2` oder `erpverein.aqbanking.listtrans-template.v3`), `request_id`, `idempotency_key` (SHA-256), `account_alias` und `artifacts.transactions_csv.sha256`. `created_at` und `period` sind optional.
+4. Stimmt die Prüfsumme der Datei nicht mit dem Manifest überein oder ist das Manifest ungültig, lehnt ERPverein den Aufruf ab und legt nichts an.
+5. Die Antwort enthält nur Zähler: Bankimport, Status, Anfrage-ID, `known`, Zeilen, neu, Duplikate, vor dem Stichtag, ohne Betrag, Fehler, abgeglichen, offen. Sie enthält keine Bankdaten.
+
+### 34.2 Idempotenz
+
+1. Ein bekannter `idempotency_key` oder eine bekannte Datei-Prüfsumme (beide eindeutig) erzeugt keinen neuen Bankimport. Steht der bekannte Bankimport auf `Importiert`, antwortet ERPverein mit seinen Zählern (`known = true`). Steht er auf `Teilfehler` oder `Fehler`, verarbeitet ERPverein seine gespeicherte Originaldatei erneut.
+2. Zeilenebene: Ein Bankumsatz mit demselben Fingerprint (eindeutiges Feld) wird nicht erneut angelegt, auch wenn er storniert ist.
+3. „Erneut verarbeiten“ am Bankimport liest die private Originaldatei, prüft ihre SHA-256 und verarbeitet sie erneut. Schon angelegte Umsätze dieses Bankimports zählen weiter als neu, nicht als Duplikat.
+4. Parallele Aufrufe mit derselben Datei scheitern am eindeutigen Feld; der zweite Aufruf antwortet mit dem Bankimport des ersten.
+
+### 34.3 Konto und Stichtag
+
+1. Der Kontoalias aus dem Manifest bestimmt das Konto: genau ein `Bank Account` mit `erpverein_bank_import_alias` gleich Alias. Der Alias ist eindeutig, klein geschrieben und nur an Firmen-Bankkonten erlaubt.
+2. Das Konto muss aktiv sein, ein Hauptbuchkonto, ein Unternehmen und eine gültige IBAN haben. Unternehmen und Währung kommen vom Konto.
+3. Nennt eine Zeile eine eigene IBAN (`localIban`), muss sie der IBAN des Kontos entsprechen. Sonst endet der Bankimport mit `Fehler` und legt nichts an.
+4. Der Go-live-Stichtag kommt aus dem aktiven SEPA-Exportprofil des Unternehmens. Zeilen mit Buchungsdatum davor zählen als „vor dem Stichtag“. Zeilen mit Betrag 0,00 zählen als „ohne Betrag“. Beide legt ERPverein nicht an.
+
+### 34.4 Parser und Fingerprint
+
+1. `v2`: acht Spalten ohne Kopfzeile (Standardvorlage von `aqbanking-cli listtrans`). `v3`: Kopfzeile mit Variablennamen; ERPverein liest die Spalten über die Namen und ignoriert unbekannte oder unbenannte Spalten.
+2. Kodierung: UTF-8 (mit oder ohne BOM), sonst Windows-1252. Datum: `TT.MM.JJJJ`, ISO oder `JJJJMMTT`, auch mit Uhrzeit. Betrag: `1234.56` (AqBanking), deutsches Format mit Komma, Vorzeichen vorn oder hinten.
+3. Normalisierung: Unicode NFC, geschützte und andere Leerzeichen und Steuerzeichen werden einfache Leerzeichen; `NOTPROVIDED` und `NONREF` gelten als leer; numerische Codes `0` gelten als leer. Eine ungültige IBAN der Gegenseite kommt in die Kontonummer.
+4. Fingerprint: SHA-256 über Konto-IBAN, Buchungsdatum, Betrag, IBAN der Gegenseite, Name der Gegenseite, Verwendungszweck (ohne Groß- und Kleinschreibung) und die laufende Nummer gleicher Zeilen in der Datei.
+5. Fehlerhafte Zeilen (Spaltenzahl, Datum, Betrag) und abgelehnte Bankumsätze stehen mit Zeile, Fehlercode und maskierter Meldung in `import_errors`. Gültige Zeilen werden trotzdem angelegt (Savepoint je Zeile). Wiederholbare Datenbankfehler brechen den Aufruf ab.
+6. `column_fill` zählt je Spalte die gefüllten Werte, ohne Inhalte. So zeigt ein echter Abruf, welche Felder die HVB liefert (Übergabe 6.6, Punkt 4).
+
+### 34.5 Bankumsatz
+
+| Feld | Inhalt |
+|---|---|
+| `date`, `deposit`, `withdrawal`, `currency`, `bank_account`, `company` | Buchungsdatum, Betrag nach Vorzeichen, Währung des Hauptbuchkontos, Vereinskonto |
+| `description` | Verwendungszweck, sonst Buchungstext |
+| `reference_number` | End-to-End-Referenz, sonst Kundenreferenz |
+| `transaction_id` | Bank-ID (`fiId`), sonst Bankreferenz |
+| `transaction_type` | Buchungstext, sonst Buchungsschlüssel |
+| `bank_party_name`, `bank_party_iban`, `bank_party_account_number` | Gegenseite |
+| `erpverein_*` | Wertstellung, SEPA-Referenzen, Gläubiger-ID, Kundenreferenz, Primanota, Textschlüssel oder GVC, Bankimport, Zeile, Fingerprint, Kategorie, Abgleich `Offen` |
+
+ERPverein legt jeden Bankumsatz an und bucht ihn. ERPNext setzt den Status (`Unreconciled`) und erkennt bei `enable_party_matching` die Partei über die IBAN eines Mandatskontos.
+
+### 34.6 Klassifikation
+
+Die Regeln prüfen in dieser Reihenfolge:
+
+1. Gutschrift: Text mit Reject oder Rückgabe → `Manuelle Pruefung`; eigene Gläubiger-ID, GVC 171, 174, 192 oder 196, Bankcode-Familie `IDDT`, Text mit „Lastschrift“ oder Verwendungszweck mit „POSTEN nn“ → `Lastschrift-Gutschrift`; Dauerauftrag, Echtzeit, Überweisung nach GVC, Bankcode oder Text; sonst mit IBAN der Gegenseite `Ueberweisung eingehend`, ohne IBAN `Sonstiges`.
+2. Belastung: Reject → `Lastschrift-Rueckgabe (Reject)`; GVC 181 oder 184, Bankcode `IDDT` mit Rückgabe-Unterfamilie, Rückgabetext oder eigene Gläubiger-ID → `Ruecklastschrift`; Entgelt, Gebühr oder Abschluss (bei Verwendungszweck nur ohne IBAN der Gegenseite) → `Bankgebuehr`; Mandatsreferenz, `RDDT` oder Lastschrifttext → `Lastschrift ausgehend`; Dauerauftrag; Überweisung; sonst `Sonstiges`.
+
+Die Codes sind nach dem ersten echten Abruf zu prüfen (Kapitel 34.8).
+
+### 34.7 Rechte und Datenschutz
+
+1. `ERPverein Bankimport` gehört `Accounts Manager` und `Accounts User`; Löschen ist nicht vorgesehen. Bankimporte entstehen nur über die Schnittstelle; von Hand änderbar ist nur `notes`.
+2. Der Import prüft `create` auf `ERPverein Bankimport` sowie `create` und `submit` auf `Bank Transaction`; er umgeht keine Berechtigung.
+3. Die Originaldatei ist privat am Bankimport. Meldungen und Fehlerprotokolle maskieren IBANs (`**** 1234`); Originalzeilen erscheinen nicht im Error Log.
+4. Der n8n-Workflow speichert keine Ausführungsdaten.
+
+### 34.8 Offene Punkte
+
+1. O7: Der Vorschlag für die Vorlage `v3` liegt beim Benutzer (`.private/handoff/2026-11-02-aqbanking-export-v3.diff`): Kopfzeile, `-T` mit 22 Variablen, Manifest mit Schema `erpverein.aqbanking.listtrans-template.v3`, Vorlage und Spaltenliste.
+2. Ein echter Abruf zeigt über `column_fill`, welche Felder die HVB im camt-Abruf füllt. Danach werden die Klassifikationsregeln geprüft.
+3. Der Abgleich-Job (Übergabe 6.6, Punkt 8) kommt mit Phase 4.
+4. Eine Aufbewahrungsfrist für Originaldateien (Kapitel 20.3) ist noch nicht festgelegt.

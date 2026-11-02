@@ -34,7 +34,10 @@ permission_query_conditions = {
 
 doc_events = {
     "Bank Account": {
-        "validate": "erpverein.services.sepa_mandat_service.validate_bank_account_provenance",
+        "validate": [
+            "erpverein.services.sepa_mandat_service.validate_bank_account_provenance",
+            "erpverein.services.bank_import_service.validate_bank_import_alias",
+        ],
     },
     "Customer": {
         "validate": [

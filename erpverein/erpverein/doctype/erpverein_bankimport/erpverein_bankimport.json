@@ -1,0 +1,388 @@
+{
+ "actions": [],
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "BANKIMPORT-.YYYY.-.#####",
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "import_section",
+  "status",
+  "company",
+  "bank_account",
+  "account_alias",
+  "import_column_break",
+  "request_id",
+  "manifest_created_at",
+  "period_from",
+  "period_to",
+  "overlap_days",
+  "go_live_date",
+  "result_section",
+  "row_count",
+  "new_transaction_count",
+  "duplicate_count",
+  "before_go_live_count",
+  "zero_amount_count",
+  "error_count",
+  "result_column_break",
+  "deposit_total",
+  "withdrawal_total",
+  "currency",
+  "reconciled_count",
+  "unreconciled_count",
+  "started_at",
+  "completed_at",
+  "errors_section",
+  "error_message",
+  "import_errors",
+  "source_section",
+  "import_profile",
+  "parser_version",
+  "source_encoding",
+  "column_fill",
+  "source_column_break",
+  "source_file",
+  "source_file_sha256",
+  "idempotency_key",
+  "manifest_section",
+  "manifest_json",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "import_section",
+   "fieldtype": "Section Break",
+   "label": "Bankimport"
+  },
+  {
+   "default": "Entwurf",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Entwurf\nImportiert\nTeilfehler\nFehler",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Unternehmen",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Vereinskonto",
+   "options": "Bank Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "account_alias",
+   "fieldtype": "Data",
+   "label": "Kontoalias (Manifest)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "import_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "request_id",
+   "fieldtype": "Data",
+   "label": "Anfrage-ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manifest_created_at",
+   "fieldtype": "Datetime",
+   "label": "Abruf erstellt am",
+   "read_only": 1
+  },
+  {
+   "fieldname": "period_from",
+   "fieldtype": "Date",
+   "label": "Zeitraum von",
+   "read_only": 1
+  },
+  {
+   "fieldname": "period_to",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Zeitraum bis",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overlap_days",
+   "fieldtype": "Int",
+   "label": "Ueberlappung (Tage)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "go_live_date",
+   "fieldtype": "Date",
+   "label": "Go-live-Stichtag",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Ergebnis"
+  },
+  {
+   "fieldname": "row_count",
+   "fieldtype": "Int",
+   "label": "Zeilen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "new_transaction_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Neue Bankumsaetze",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "duplicate_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Duplikate",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "before_go_live_count",
+   "fieldtype": "Int",
+   "label": "Vor dem Stichtag",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "zero_amount_count",
+   "fieldtype": "Int",
+   "label": "Ohne Betrag",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Fehlerhafte Zeilen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "deposit_total",
+   "fieldtype": "Currency",
+   "label": "Summe Gutschriften",
+   "no_copy": 1,
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "withdrawal_total",
+   "fieldtype": "Currency",
+   "label": "Summe Belastungen",
+   "no_copy": 1,
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "default": "EUR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Waehrung",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_count",
+   "fieldtype": "Int",
+   "label": "Abgeglichen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "unreconciled_count",
+   "fieldtype": "Int",
+   "label": "Offen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Verarbeitet am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Verarbeitung beendet am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.error_count || doc.error_message",
+   "fieldname": "errors_section",
+   "fieldtype": "Section Break",
+   "label": "Fehler"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Fehler der Datei",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "import_errors",
+   "fieldtype": "Table",
+   "label": "Fehlerhafte Zeilen",
+   "no_copy": 1,
+   "options": "ERPverein Bankimport Fehler",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Quelle"
+  },
+  {
+   "fieldname": "import_profile",
+   "fieldtype": "Select",
+   "label": "Importprofil",
+   "options": "aqbanking-listtrans-default-v2\naqbanking-listtrans-template-v3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "parser_version",
+   "fieldtype": "Data",
+   "label": "Parser-Version",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_encoding",
+   "fieldtype": "Data",
+   "label": "Zeichenkodierung",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Anzahl gefuellter Werte je Spalte, ohne Inhalte.",
+   "fieldname": "column_fill",
+   "fieldtype": "Code",
+   "label": "Fuellgrad je Spalte",
+   "no_copy": 1,
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Attach",
+   "label": "Originaldatei",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_file_sha256",
+   "fieldtype": "Data",
+   "label": "SHA-256 der Originaldatei",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotenzschluessel",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "manifest_section",
+   "fieldtype": "Section Break",
+   "label": "Manifest und Hinweise"
+  },
+  {
+   "fieldname": "manifest_json",
+   "fieldtype": "Code",
+   "label": "Manifest",
+   "no_copy": 1,
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Hinweise"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "links": [
+  {
+   "link_doctype": "Bank Transaction",
+   "link_fieldname": "erpverein_import_batch"
+  }
+ ],
+ "modified": "2026-11-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ERPverein",
+ "name": "ERPverein Bankimport",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

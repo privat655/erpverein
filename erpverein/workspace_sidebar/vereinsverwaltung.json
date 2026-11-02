@@ -96,6 +96,30 @@
    "icon": "list",
    "indent": 0,
    "keep_closed": 0,
+   "label": "Bankimporte",
+   "link_to": "ERPverein Bankimport",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Bankumsätze",
+   "link_to": "Bank Transaction",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
      "label": "Beitragsabrechnungen",
      "link_to": "Beitragsabrechnung",
    "link_type": "DocType",
@@ -127,7 +151,7 @@
     "type": "Link"
    }
  ],
- "modified": "2026-11-02 13:00:00.000000",
+ "modified": "2026-11-02 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "Vereinsverwaltung",

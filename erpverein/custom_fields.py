@@ -1,5 +1,7 @@
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields, delete_custom_fields
 
+from erpverein.services.bank_statement_parser import CATEGORIES as BANK_CATEGORY_OPTIONS
+
 
 CUSTOMER_MITGLIED_FIELDNAME = "erpverein_mitglied"
 CUSTOMER_MIETER_FIELDNAME = "erpverein_mieter"
@@ -25,6 +27,22 @@ SALES_INVOICE_PAYER_FIELDNAME = "erpverein_payer"
 SALES_INVOICE_SEPA_MANDATE_FIELDNAME = "erpverein_sepa_mandate"
 SALES_INVOICE_SCHEDULE_FINGERPRINT_FIELDNAME = "erpverein_schedule_fingerprint"
 PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME = "erpverein_changed_at"
+BANK_ACCOUNT_IMPORT_ALIAS_FIELDNAME = "erpverein_bank_import_alias"
+BANK_TRANSACTION_SECTION_FIELDNAME = "erpverein_bank_section"
+BANK_TRANSACTION_CATEGORY_FIELDNAME = "erpverein_bank_category"
+BANK_TRANSACTION_MATCH_STATUS_FIELDNAME = "erpverein_match_status"
+BANK_TRANSACTION_VALUE_DATE_FIELDNAME = "erpverein_value_date"
+BANK_TRANSACTION_END_TO_END_FIELDNAME = "erpverein_sepa_end_to_end_reference"
+BANK_TRANSACTION_MANDATE_FIELDNAME = "erpverein_sepa_mandate_reference"
+BANK_TRANSACTION_CREDITOR_FIELDNAME = "erpverein_sepa_creditor_identifier"
+BANK_TRANSACTION_COLUMN_FIELDNAME = "erpverein_bank_column"
+BANK_TRANSACTION_CUSTOMER_REFERENCE_FIELDNAME = "erpverein_customer_reference"
+BANK_TRANSACTION_PRIMANOTA_FIELDNAME = "erpverein_primanota"
+BANK_TRANSACTION_TEXT_KEY_FIELDNAME = "erpverein_text_key"
+BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME = "erpverein_import_batch"
+BANK_TRANSACTION_SOURCE_ROW_FIELDNAME = "erpverein_source_row_number"
+BANK_TRANSACTION_FINGERPRINT_FIELDNAME = "erpverein_source_fingerprint"
+BANK_MATCH_STATUS_OPTIONS = ("Offen", "Abgeglichen", "Vorschlag", "Manuelle Pruefung")
 
 
 def get_custom_fields() -> dict:
@@ -85,6 +103,16 @@ def get_custom_fields() -> dict:
                 "hidden": 1,
                 "no_copy": 1,
                 "read_only": 1,
+            },
+            {
+                "fieldname": BANK_ACCOUNT_IMPORT_ALIAS_FIELDNAME,
+                "label": "ERPverein Bankimport-Alias",
+                "fieldtype": "Data",
+                "insert_after": "company",
+                "description": "Kontoalias aus dem Manifest der Banking-Webtop, zum Beispiel verein-main.",
+                "depends_on": "is_company_account",
+                "no_copy": 1,
+                "unique": 1,
             },
         ],
         "Subscription": [
@@ -272,6 +300,128 @@ def get_custom_fields() -> dict:
                 "print_hide": 1,
             },
         ],
+        "Bank Transaction": [
+            {
+                "fieldname": BANK_TRANSACTION_SECTION_FIELDNAME,
+                "label": "ERPverein",
+                "fieldtype": "Section Break",
+                "insert_after": "excluded_fee",
+            },
+            {
+                "fieldname": BANK_TRANSACTION_CATEGORY_FIELDNAME,
+                "label": "ERPverein Kategorie",
+                "fieldtype": "Select",
+                "options": "\n" + "\n".join(BANK_CATEGORY_OPTIONS),
+                "insert_after": BANK_TRANSACTION_SECTION_FIELDNAME,
+                "allow_on_submit": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                "label": "ERPverein Abgleich",
+                "fieldtype": "Select",
+                "options": "\n" + "\n".join(BANK_MATCH_STATUS_OPTIONS),
+                "insert_after": BANK_TRANSACTION_CATEGORY_FIELDNAME,
+                "allow_on_submit": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_VALUE_DATE_FIELDNAME,
+                "label": "Wertstellung",
+                "fieldtype": "Date",
+                "insert_after": BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_END_TO_END_FIELDNAME,
+                "label": "SEPA-End-to-End-Referenz",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_VALUE_DATE_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "search_index": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_MANDATE_FIELDNAME,
+                "label": "SEPA-Mandatsreferenz",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_END_TO_END_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "search_index": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_CREDITOR_FIELDNAME,
+                "label": "SEPA-Glaeubiger-ID",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_MANDATE_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_COLUMN_FIELDNAME,
+                "fieldtype": "Column Break",
+                "insert_after": BANK_TRANSACTION_CREDITOR_FIELDNAME,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_CUSTOMER_REFERENCE_FIELDNAME,
+                "label": "Kundenreferenz",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_COLUMN_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_PRIMANOTA_FIELDNAME,
+                "label": "Primanota",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_CUSTOMER_REFERENCE_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_TEXT_KEY_FIELDNAME,
+                "label": "Textschluessel / GVC",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_PRIMANOTA_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME,
+                "label": "ERPverein Bankimport",
+                "fieldtype": "Link",
+                "options": "ERPverein Bankimport",
+                "insert_after": BANK_TRANSACTION_TEXT_KEY_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "search_index": 1,
+                "in_standard_filter": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_SOURCE_ROW_FIELDNAME,
+                "label": "Zeile in der Originaldatei",
+                "fieldtype": "Int",
+                "insert_after": BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": BANK_TRANSACTION_FINGERPRINT_FIELDNAME,
+                "label": "ERPverein Fingerprint",
+                "fieldtype": "Data",
+                "insert_after": BANK_TRANSACTION_SOURCE_ROW_FIELDNAME,
+                "hidden": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "unique": 1,
+            },
+        ],
     }
 
 
@@ -283,7 +433,11 @@ def remove_custom_fields() -> None:
     delete_custom_fields(
         {
             "Customer": [CUSTOMER_MITGLIED_FIELDNAME, CUSTOMER_SYNC_STATE_FIELDNAME, CUSTOMER_MIETER_FIELDNAME],
-            "Bank Account": [BANK_ACCOUNT_MANAGED_FIELDNAME, BANK_ACCOUNT_SYNC_STATE_FIELDNAME],
+            "Bank Account": [
+                BANK_ACCOUNT_MANAGED_FIELDNAME,
+                BANK_ACCOUNT_SYNC_STATE_FIELDNAME,
+                BANK_ACCOUNT_IMPORT_ALIAS_FIELDNAME,
+            ],
             "Subscription": [
                 SUBSCRIPTION_MANAGED_FIELDNAME,
                 SUBSCRIPTION_BILLING_KIND_FIELDNAME,
@@ -307,5 +461,21 @@ def remove_custom_fields() -> None:
                 SALES_INVOICE_SCHEDULE_FINGERPRINT_FIELDNAME,
             ],
             "Payment Schedule": [PAYMENT_SCHEDULE_CHANGED_AT_FIELDNAME],
+            "Bank Transaction": [
+                BANK_TRANSACTION_SECTION_FIELDNAME,
+                BANK_TRANSACTION_CATEGORY_FIELDNAME,
+                BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                BANK_TRANSACTION_VALUE_DATE_FIELDNAME,
+                BANK_TRANSACTION_END_TO_END_FIELDNAME,
+                BANK_TRANSACTION_MANDATE_FIELDNAME,
+                BANK_TRANSACTION_CREDITOR_FIELDNAME,
+                BANK_TRANSACTION_COLUMN_FIELDNAME,
+                BANK_TRANSACTION_CUSTOMER_REFERENCE_FIELDNAME,
+                BANK_TRANSACTION_PRIMANOTA_FIELDNAME,
+                BANK_TRANSACTION_TEXT_KEY_FIELDNAME,
+                BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME,
+                BANK_TRANSACTION_SOURCE_ROW_FIELDNAME,
+                BANK_TRANSACTION_FINGERPRINT_FIELDNAME,
+            ],
         }
     )
