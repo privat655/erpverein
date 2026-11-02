@@ -42,13 +42,20 @@ RUN_STATUS_DRAFT = "Entwurf"
 RUN_STATUS_CHECKED = "Geprueft"
 RUN_STATUS_EXPORTED = "Exportiert"
 RUN_STATUS_BANK_REFERENCE = "Bankreferenz erfasst"
+RUN_STATUS_CREDIT_RECOGNIZED = "Bankgutschrift erkannt"
+RUN_STATUS_SETTLED = "Abgestimmt"
+RUN_STATUS_REVIEW = "Manuelle Pruefung"
 RUN_STATUS_CANCELLED = "Storniert"
 POSITION_STATUS_DRAFT = "Entwurf"
 POSITION_STATUS_CHECKED = "Geprueft"
 POSITION_STATUS_EXPORTED = "Exportiert"
+POSITION_STATUS_PAID = "Bezahlt"
+POSITION_STATUS_REVIEW = "Manuelle Pruefung"
 POSITION_STATUS_CANCELLED = "Storniert"
 OPEN_RUN_STATUSES = {RUN_STATUS_DRAFT, RUN_STATUS_CHECKED}
 EXPORTED_RUN_STATUSES = {RUN_STATUS_EXPORTED, RUN_STATUS_BANK_REFERENCE}
+# After the export a run waits for its bank credit; these statuses still allow a settlement (Phase 4).
+SETTLEMENT_RUN_STATUSES = EXPORTED_RUN_STATUSES | {RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_REVIEW}
 INACTIVE_POSITION_STATUSES = {POSITION_STATUS_CANCELLED}
 SEQUENCE_TYPE_RECURRING = "RCUR"
 ACCOUNTS_ROLES = frozenset({"Accounts User", "Accounts Manager"})
@@ -694,15 +701,23 @@ def cancel_collection_run(run_name: str, reason: str | None = None, confirm_not_
     run = get_locked_run(run_name)
     if run.status == RUN_STATUS_CANCELLED:
         frappe.throw(_("Der Einzugslauf ist bereits storniert."))
-    if run.status in EXPORTED_RUN_STATUSES and not cint(confirm_not_submitted):
+    positions = get_active_position_docs(run.name)
+    if (
+        run.status in {RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_SETTLED}
+        or run.settlement_bank_transaction
+        or any(position.payment_entry or position.settlement_bank_transaction for position in positions)
+    ):
+        frappe.throw(
+            _("Zu diesem Einzugslauf gibt es schon eine Bankgutschrift oder Zahlungen. Er laesst sich nicht stornieren.")
+        )
+    exported = run.status in SETTLEMENT_RUN_STATUSES
+    if exported and not cint(confirm_not_submitted):
         frappe.throw(
             _("Bestaetige, dass die Bank die Datei nicht ausfuehrt (nicht hochgeladen, abgelehnt oder nicht freigegeben).")
         )
     reason = require_reason(reason)
-    positions = get_active_position_docs(run.name)
     for position in positions:
         save_position(position, {"status": POSITION_STATUS_CANCELLED, "cancel_reason": reason})
-    exported = run.status in EXPORTED_RUN_STATUSES
     run.status = RUN_STATUS_CANCELLED
     run.cancel_reason = reason
     save_run_totals(run)
@@ -747,6 +762,7 @@ def get_run_positions_for_display(run_name: str) -> list[dict]:
             "amount",
             "mandate_reference_snapshot",
             "debtor_iban_masked",
+            "payment_entry",
             "processing_error",
         ],
         order_by="name asc",

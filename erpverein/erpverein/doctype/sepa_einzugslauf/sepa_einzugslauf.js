@@ -21,15 +21,47 @@ frappe.ui.form.on("SEPA Einzugslauf", {
                 ),
             );
         }
-        if (["Exportiert", "Bankreferenz erfasst"].includes(status) && frm.doc.export_file) {
+        if (frm.doc.export_file && !["Entwurf", "Geprueft", "Storniert"].includes(status)) {
             frm.add_custom_button(__("Datei herunterladen"), () => window.open(frm.doc.export_file));
+        }
+        if (["Exportiert", "Bankreferenz erfasst"].includes(status) && frm.doc.export_file) {
             frm.add_custom_button(__("Bankreferenz erfassen"), () => erpverein_set_bank_reference(frm));
         }
-        if (status !== "Storniert") {
+        if (["Exportiert", "Bankreferenz erfasst", "Bankgutschrift erkannt", "Manuelle Pruefung"].includes(status)) {
+            frm.add_custom_button(__("Abgleich starten"), () =>
+                erpverein_collection_call(frm, "start_reconciliation", {}, __("Abgleich wird eingereiht...")).then((r) => {
+                    if (r && !r.exc) {
+                        frappe.show_alert({ message: __("Abgleich eingereiht. Lade das Formular gleich neu."), indicator: "blue" });
+                    }
+                }),
+            );
+        }
+        if (!["Storniert", "Bankgutschrift erkannt", "Abgestimmt"].includes(status) && !frm.doc.settlement_bank_transaction) {
             frm.add_custom_button(__("Lauf stornieren"), () => erpverein_cancel_collection_run(frm));
         }
+        erpverein_show_settlement_status(frm);
     },
 });
+
+function erpverein_show_settlement_status(frm) {
+    const status = frm.doc.status;
+    if (status === "Abgestimmt") {
+        frm.dashboard.set_headline_alert(
+            __("Abgestimmt am {0}. Jede Position hat eine gebuchte Zahlung.", [frappe.datetime.str_to_user(frm.doc.settled_at)]),
+            "green",
+        );
+    } else if (status === "Bankgutschrift erkannt") {
+        frm.dashboard.set_headline_alert(
+            __("Die Bankgutschrift ist erkannt. Es fehlen noch Zahlungen. Klicke „Abgleich starten“, wenn das so bleibt."),
+            "orange",
+        );
+    } else if (status === "Manuelle Pruefung") {
+        frm.dashboard.set_headline_alert(
+            `${__("Manuelle Prüfung.")} ${frappe.utils.escape_html(frm.doc.settlement_note || "")}`,
+            "red",
+        );
+    }
+}
 
 function erpverein_collection_call(frm, method, args, freeze_message) {
     return frappe.call({
@@ -98,7 +130,7 @@ function erpverein_set_bank_reference(frm) {
 }
 
 function erpverein_cancel_collection_run(frm) {
-    const exported = ["Exportiert", "Bankreferenz erfasst"].includes(frm.doc.status);
+    const exported = ["Exportiert", "Bankreferenz erfasst", "Manuelle Pruefung"].includes(frm.doc.status);
     erpverein_ask_reason(__("Lauf stornieren"), exported, (values) =>
         erpverein_collection_call(frm, "cancel_run", {
             reason: values.reason,
@@ -148,6 +180,11 @@ function erpverein_render_collection_positions(frm) {
                 <td class="text-right">${format_currency(position.amount, frm.doc.currency)}</td>
                 <td>${frappe.utils.escape_html(position.mandate_reference_snapshot || "")}</td>
                 <td>${frappe.utils.escape_html(position.debtor_iban_masked || "")}</td>
+                <td>${
+                    position.payment_entry
+                        ? `<a href="/app/payment-entry/${encodeURIComponent(position.payment_entry)}">${frappe.utils.escape_html(position.payment_entry)}</a>`
+                        : ""
+                }</td>
                 <td class="text-danger">${frappe.utils.escape_html(position.processing_error || "")}</td>
             </tr>`,
         )
@@ -156,14 +193,14 @@ function erpverein_render_collection_positions(frm) {
         <thead><tr>
             <th>${__("Position")}</th><th>${__("Status")}</th><th>${__("Zahler")}</th><th>${__("Rechnung")}</th>
             <th>${__("Fälligkeit")}</th><th>${__("Betrag")}</th><th>${__("Mandatsreferenz")}</th><th>${__("IBAN")}</th>
-            <th>${__("Prüfergebnis")}</th>
+            <th>${__("Zahlung")}</th><th>${__("Prüfergebnis")}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
     </table>`);
 }
 
 function erpverein_show_upload_window(frm) {
-    if (frm.is_new() || !frm.doc.upload_deadline || frm.doc.status === "Storniert") {
+    if (frm.is_new() || !frm.doc.upload_deadline || !["Entwurf", "Geprueft", "Exportiert"].includes(frm.doc.status)) {
         return;
     }
     const passed = (frm.doc.__onload || {}).upload_deadline_passed;

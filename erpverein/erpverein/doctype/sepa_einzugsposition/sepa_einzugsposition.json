@@ -33,6 +33,10 @@
   "end_to_end_reference",
   "sequence_type",
   "purpose",
+  "payment_section",
+  "payment_entry",
+  "payment_column_break",
+  "settlement_bank_transaction",
   "processing_section",
   "processing_error",
   "cancel_reason",
@@ -66,7 +70,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Entwurf\nGeprueft\nExportiert\nStorniert",
+   "options": "Entwurf\nGeprueft\nExportiert\nBezahlt\nManuelle Pruefung\nStorniert",
    "read_only": 1
   },
   {
@@ -219,6 +223,32 @@
    "label": "Verwendungszweck"
   },
   {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Zahlung"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Zahlung",
+   "no_copy": 1,
+   "options": "Payment Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "settlement_bank_transaction",
+   "fieldtype": "Link",
+   "label": "Bankumsatz",
+   "no_copy": 1,
+   "options": "Bank Transaction",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
    "fieldname": "processing_section",
    "fieldtype": "Section Break",
    "label": "Pruefung"
@@ -271,7 +301,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-11-02 12:00:00.000000",
+ "modified": "2026-11-02 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Einzugsposition",

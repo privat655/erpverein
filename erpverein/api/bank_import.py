@@ -2,6 +2,7 @@ import frappe
 
 from erpverein.services.bank_import_service import import_bank_statement, reprocess_bank_import
 from erpverein.services.bank_statement_parser import MAX_MANIFEST_BYTES, MAX_STATEMENT_BYTES
+from erpverein.services.sepa_settlement_service import start_import_reconciliation
 
 
 @frappe.whitelist(methods=["POST"])
@@ -17,3 +18,8 @@ def import_statement(manifest: str | None = None) -> dict:
 @frappe.whitelist(methods=["POST"])
 def reprocess(bank_import: str) -> dict:
     return reprocess_bank_import(bank_import)
+
+
+@frappe.whitelist(methods=["POST"])
+def start_reconciliation(bank_import: str) -> dict:
+    return start_import_reconciliation(bank_import)

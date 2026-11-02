@@ -60,6 +60,10 @@ doc_events = {
         "validate": "erpverein.services.payment_schedule_service.apply_payment_schedule",
         "before_cancel": "erpverein.services.sepa_collection_service.prevent_invoice_cancel_with_active_positions",
     },
+    "Payment Entry": {
+        "validate": "erpverein.services.sepa_settlement_service.validate_payment_entry_provenance",
+        "on_cancel": "erpverein.services.sepa_settlement_service.handle_cancelled_collection_payment",
+    },
 }
 
 scheduler_events = {

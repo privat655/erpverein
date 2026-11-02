@@ -44,6 +44,9 @@ STATUS_DRAFT = "Entwurf"
 STATUS_IMPORTED = "Importiert"
 STATUS_PARTIAL = "Teilfehler"
 STATUS_FAILED = "Fehler"
+RECONCILIATION_QUEUED = "Eingereiht"
+RECONCILIATION_DONE = "Abgeschlossen"
+RECONCILIATION_FAILED = "Fehler"
 MATCH_STATUS_OPEN = "Offen"
 UPDATE_FLAG = "erpverein_bank_import_update"
 EDITABLE_FIELDS = {"notes"}
@@ -368,8 +371,16 @@ def finish_import(doc, counters, errors: list[tuple], fatal: str | None = None) 
         doc.status = STATUS_PARTIAL
     else:
         doc.status = STATUS_IMPORTED
+    queue_reconciliation = doc.status != STATUS_FAILED and bool(doc.bank_account)
+    if queue_reconciliation:
+        doc.update({"reconciliation_status": RECONCILIATION_QUEUED, "reconciliation_message": None, "reconciled_at": None})
     doc.flags[UPDATE_FLAG] = True
     doc.save()
+    if queue_reconciliation:
+        # Imported here to avoid a cycle: the settlement service records its result on the bank import.
+        from erpverein.services.sepa_settlement_service import enqueue_bank_reconciliation
+
+        enqueue_bank_reconciliation(doc.bank_account, doc.name)
     return import_summary(doc)
 
 
@@ -388,7 +399,35 @@ def import_summary(doc, known: bool = False) -> dict:
         "errors": cint(doc.error_count),
         "reconciled": cint(doc.reconciled_count),
         "open": cint(doc.unreconciled_count),
+        "reconciliation": doc.reconciliation_status or None,
     }
+
+
+def mark_reconciliation_queued(doc) -> None:
+    doc.update({"reconciliation_status": RECONCILIATION_QUEUED, "reconciliation_message": None, "reconciled_at": None})
+    doc.flags[UPDATE_FLAG] = True
+    doc.save()
+
+
+def record_reconciliation_result(name: str, status: str, message: str | None) -> None:
+    doc = get_locked_import(name)
+    transactions = frappe.get_list(
+        "Bank Transaction",
+        filters={BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME: doc.name, "docstatus": 1},
+        fields=["status"],
+        limit_page_length=0,
+    )
+    doc.update(
+        {
+            "reconciliation_status": status,
+            "reconciliation_message": message,
+            "reconciled_at": now_datetime(),
+            "reconciled_count": sum(1 for row in transactions if row.status == "Reconciled"),
+            "unreconciled_count": sum(1 for row in transactions if row.status == "Unreconciled"),
+        }
+    )
+    doc.flags[UPDATE_FLAG] = True
+    doc.save()
 
 
 def reprocess_bank_import(name: str) -> dict:

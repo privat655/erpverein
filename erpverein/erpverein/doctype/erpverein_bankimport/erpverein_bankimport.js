@@ -13,8 +13,46 @@ frappe.ui.form.on("ERPverein Bankimport", {
                 "btn-primary",
             );
         }
+        if (["Importiert", "Teilfehler"].includes(frm.doc.status)) {
+            frm.add_custom_button(__("Abgleich starten"), () => erpverein_start_bank_reconciliation(frm));
+        }
+        erpverein_show_reconciliation_status(frm);
     },
 });
+
+function erpverein_show_reconciliation_status(frm) {
+    const status = frm.doc.reconciliation_status;
+    if (status === "Eingereiht") {
+        frm.dashboard.set_headline_alert(
+            __("Der Abgleich läuft im Hintergrund. Lade das Formular in einer Minute neu."),
+            "blue",
+        );
+    } else if (status === "Fehler") {
+        frm.dashboard.set_headline_alert(
+            `${__("Der Abgleich ist fehlgeschlagen.")} ${frappe.utils.escape_html(frm.doc.reconciliation_message || "")}`,
+            "red",
+        );
+    } else if (status === "Abgeschlossen") {
+        frm.dashboard.set_headline_alert(
+            `${__("Abgleich beendet.")} ${frappe.utils.escape_html(frm.doc.reconciliation_message || "")}`,
+            "green",
+        );
+    }
+}
+
+function erpverein_start_bank_reconciliation(frm) {
+    frappe.call({
+        method: "erpverein.api.bank_import.start_reconciliation",
+        args: { bank_import: frm.doc.name },
+        freeze: true,
+        callback(r) {
+            if (!r.exc) {
+                frappe.show_alert({ message: __("Abgleich eingereiht."), indicator: "blue" });
+                frm.reload_doc();
+            }
+        },
+    });
+}
 
 function erpverein_show_bank_import_intro(frm) {
     if (frm.doc.status === "Fehler") {

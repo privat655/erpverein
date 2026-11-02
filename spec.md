@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.4 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34)  
+**Version:** 0.5 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34); Abgleich der Sammelgutschrift nach Umsetzung präzisiert (Kapitel 35)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -424,15 +424,15 @@ Vorhanden sind:
 - tägliche Aktualisierung der SEPA-Einzugsplanprojektionen,
 - stündliche Bereinigung beziehungsweise Abstimmung veralteter Abrechnungsjobs.
 
+Dazu kommt seit Phase 4 ein Hintergrundjob nach jedem Bankimport: der Abgleich der Sammelgutschrift (Kapitel 35).
+
 ### 6.9 Noch nicht implementiert
 
-Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34).
+Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34) und der automatische Abgleich der Sammelgutschrift mit einer Zahlung je Einzugsposition (Phase 4, Kapitel 35).
 
 Noch nicht vorhanden sind:
 
 - eingebettete Subscription-, Rechnungs- und Zahlungsansichten in Mitglied und Mieter,
-- automatische Zuordnung von Sammelgutschriften,
-- Payment-Entry-Erzeugung je Einzugsposition,
 - Selbstüberweiser-Matching,
 - Reject- und Rücklastschriftprozess,
 - historische Übernahme ab 2016.
@@ -743,6 +743,8 @@ Technische Optionswerte werden ASCII-kompatibel gespeichert; die UI darf deutsch
 
 Umsetzung Phase 2: Der Lauf kennt die Status `Entwurf`, `Geprueft`, `Exportiert`, `Bankreferenz erfasst` und `Storniert`. Die übrigen Status kommen mit den Phasen 4 und 6. Ein exportierter Lauf lässt sich nur stornieren, wenn der Benutzer bestätigt, dass die Bank die Datei nicht ausführt (Kapitel 33.6).
 
+Umsetzung Phase 4: Dazu kommen `Bankgutschrift erkannt`, `Abgestimmt` und `Manuelle Pruefung` (Kapitel 35.4). Ein Lauf mit Bankgutschrift oder Zahlungen lässt sich nicht mehr stornieren. `Teilweise zurueckbelastet` und `Abgeschlossen` kommen mit Phase 6.
+
 ### 10.5 Regeln
 
 - Ein Einzugslauf hat genau ein Einzugsdatum und genau einen Sequenztyp. Er erzeugt genau eine Datei mit genau einem `PmtInf`-Block. Bei mehreren Einzugsdaten entstehen mehrere Einzugsläufe.
@@ -857,6 +859,8 @@ stateDiagram-v2
 ```
 
 Umsetzung Phase 2: Die Position kennt die Status `Entwurf`, `Geprueft`, `Exportiert` und `Storniert`. Eine Position ist aktiv, solange sie nicht storniert ist (später auch nicht abgelehnt oder zurückbelastet).
+
+Umsetzung Phase 4: Dazu kommen `Bezahlt` (Zahlung gebucht) und `Manuelle Pruefung` (keine Zahlung, Grund in `processing_error`). `Bankbestaetigt` entfällt, weil ERPverein Zuordnung und Zahlung in einem Schritt erledigt. Eine bezahlte Position bleibt aktiv.
 
 ### 11.5 Betragsregeln
 
@@ -1108,7 +1112,7 @@ Kontoauszüge werden als maschinenlesbarer Export importiert.
 Die laufende Quelle ist die AqBanking-CSV (`aqbanking-cli listtrans`) mit einem Manifest. Die Banking-Webtop sendet beides an einen n8n-Webhook. n8n ruft genau eine ERPverein-Methode auf und übergibt Manifest und Datei unverändert. n8n parst keine Zeilen und läuft nicht in einer Schleife pro Umsatz. Der Parser ist versioniert:
 
 - `aqbanking-listtrans-default-v2`: Standardvorlage von AqBanking, tabulatorgetrennt, ohne Kopfzeile,
-- `aqbanking-listtrans-template-v3`: erweiterte Vorlage mit Kopfzeile und SEPA-Feldern. ERPverein liest sie seit Phase 3; die Umstellung der Banking-Webtop wartet auf die Freigabe des Benutzers (O7, Kapitel 34.8).
+- `aqbanking-listtrans-template-v3`: erweiterte Vorlage mit Kopfzeile und SEPA-Feldern. ERPverein liest sie seit Phase 3; die Banking-Webtop liefert sie nach dem Anwenden des angepassten VPSmith-Pakets „banking“ (O7, Kapitel 34.8).
 
 Der laufende Import übernimmt nur Bankumsätze ab dem Go-live-Stichtag.
 
@@ -1371,6 +1375,8 @@ Matching-Priorität:
 
 Eine automatische Zuordnung erfolgt nur bei genau einem eindeutigen Treffer.
 
+> **Umsetzung (Phase 4):** Signale sind Betrag gleich Laufsumme, Buchungsdatum vom Einzugsdatum bis `settlement_tolerance_days` später, „POSTEN nn“ gleich Positionsanzahl sowie Laufname, `MsgId` oder Bankreferenz im Text. Kandidaten sind Bankumsätze der Kategorie `Lastschrift-Gutschrift` oder mit einem Laufnamen im Text. Zugeordnet wird nur ein Paar, bei dem Bankumsatz und Lauf jeweils nur zueinander passen (Kapitel 35.2).
+
 ### 15.3 Betragsprüfung
 
 ```text
@@ -1400,6 +1406,8 @@ Für jede bestätigte Position wird ein eigener `Payment Entry` erzeugt:
 
 Alle Payment Entries werden mit derselben Sammel-Bank-Transaction abgestimmt.
 
+> **Umsetzung (Phase 4):** ERPverein erzeugt die Zahlung mit `get_payment_entry` aus ERPNext und setzt Buchungsdatum, Vereinskonto, Zahlungsweise „SEPA-Lastschrift“, `reference_no` und die Zahlungsbedingung. Der Abgleich läuft über `reconcile_vouchers` mit genau diesen Zahlungen, nie über `auto_reconcile_vouchers` (Kapitel 35.3).
+
 ### 15.5 Custom Field auf `Payment Entry`
 
 | Feldname | Typ | Bedeutung |
@@ -1408,6 +1416,8 @@ Alle Payment Entries werden mit derselben Sammel-Bank-Transaction abgestimmt.
 | `erpverein_bank_transaction` | Link `Bank Transaction` | optionale direkte Navigation |
 
 `erpverein_sepa_collection_item` muss für eingereichte Einzugszahlungen eindeutig sein.
+
+> **Umsetzung (Phase 4):** Beide Felder sind schreibgeschützt und werden nicht kopiert. `erpverein_sepa_collection_item` hat einen eindeutigen Index; auch eine stornierte Zahlung behält ihn, deshalb entsteht für diese Position keine zweite Zahlung. Nur ERPverein setzt die Felder. Dazu kommt am Bankumsatz `erpverein_match_note` (Hinweis zum Abgleich).
 
 ### 15.6 Verarbeitung
 
@@ -1431,6 +1441,8 @@ Wenn eine einzelne Payment Entry nicht erzeugt werden kann:
 - der Lauf wird nicht als vollständig abgestimmt markiert,
 - ein Wiederholungsjob verarbeitet nur fehlende Positionen,
 - bereits vorhandene Payment Entries werden über den Positionslink erkannt.
+
+> **Umsetzung (Phase 4):** Jede Zahlung entsteht in einem eigenen Savepoint. Der Wiederanlauf läuft automatisch mit jedem Abgleich und über „Abgleich starten“ (Kapitel 35.5).
 
 ### 15.8 Abnahmekriterien
 
@@ -1926,6 +1938,8 @@ n8n nutzt einen eigenen API-Benutzer. Hintergrundjobs laufen mit dem Benutzer, d
 
 Festlegung Phase 3: Der API-Benutzer hat nur `Accounts User`. Damit legt er `ERPverein Bankimport` und `File` an und bucht `Bank Transaction`; er liest das Vereinskonto. Ein Benutzer ohne `Accounts User` oder `Accounts Manager` sieht keine Bankimporte und keine Originaldatei, auch mit `System Manager`. Phase 4 prüft, welche Rollen der Abgleich zusätzlich braucht.
 
+Festlegung Phase 4 (Entscheidung des Benutzers vom 02.11.2026): Die API-Rechte sind die Rechte des ERPNext-Benutzers, dem der API-Schlüssel gehört. ERPverein führt kein eigenes Rechtesystem für die API ein. n8n nutzt den API-Schlüssel des Kassenwarts oder eines Benutzers mit denselben Rollen. Der Abgleich braucht `System Manager` (Einzugsläufe und -positionen) und `Accounts User` oder `Accounts Manager` (Bankumsätze, Zahlungen, Rechnungen). Ein Benutzer mit nur `Accounts User` importiert, der Abgleich endet dann mit einem klaren Grund am Bankimport.
+
 ### 20.7 Vier-Augen-Prinzip
 
 Entfällt. Der Verein hat nur einen Benutzer. Die Bank autorisiert die Lastschriftdatei getrennt: Der Kassenwart gibt sie in PayGate mit TAN frei. Die Kontobestätigung erfolgt über den Kontoauszug.
@@ -2269,6 +2283,8 @@ Status: umgesetzt am 02.11.2026 (Kapitel 34); Freigabe der Webtop-Erweiterung (O
 - Test T12.
 
 ### Phase 4 – Sammelgutschrift abgleichen (vor dem Release)
+
+Status: umgesetzt am 02.11.2026 (Kapitel 35); Prüfung der Klassifikation mit einem echten Abruf offen.
 
 - Zuordnung der Sammelgutschrift und Zahlung je Einzugsposition,
 - Wiederanlauf ohne zweite Zahlung,
@@ -2625,7 +2641,7 @@ Vor dem Export storniert der Kassenwart einzelne Positionen oder den Lauf. Nach 
 
 ### 33.7 Feldnamen der Umsetzung
 
-Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für Sammelgutschrift und Rücklastschrift kommen mit den Phasen 4 und 6.
+Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für die Sammelgutschrift stehen in Kapitel 35.6; die Felder für die Rücklastschrift kommen mit Phase 6.
 
 ---
 
@@ -2694,7 +2710,92 @@ Die Codes sind nach dem ersten echten Abruf zu prüfen (Kapitel 34.8).
 
 ### 34.8 Offene Punkte
 
-1. O7: Der Vorschlag für die Vorlage `v3` liegt beim Benutzer (`.private/handoff/2026-11-02-aqbanking-export-v3.diff`): Kopfzeile, `-T` mit 22 Variablen, Manifest mit Schema `erpverein.aqbanking.listtrans-template.v3`, Vorlage und Spaltenliste.
+1. O7: freigegeben am 02.11.2026. Die Banking-Webtop entsteht aus dem VPSmith-Paket „banking“; dessen `image/banking-fetch` exportiert mit der Vorlage `v3` (Kopfzeile, `-T` mit 22 Variablen, Manifest mit Schema `erpverein.aqbanking.listtrans-template.v3`, Vorlage und Spaltenliste), und der Image-Bau prüft die Option `-T`. Wirksam nach Freigabe und Anwenden des Pakets; VPSmith baut das Desktop-Image dabei neu.
 2. Ein echter Abruf zeigt über `column_fill`, welche Felder die HVB im camt-Abruf füllt. Danach werden die Klassifikationsregeln geprüft.
-3. Der Abgleich-Job (Übergabe 6.6, Punkt 8) kommt mit Phase 4.
+3. Der Abgleich-Job (Übergabe 6.6, Punkt 8) ist mit Phase 4 umgesetzt (Kapitel 35.1).
 4. Eine Aufbewahrungsfrist für Originaldateien (Kapitel 20.3) ist noch nicht festgelegt.
+
+---
+
+## 35. Sammelgutschrift und Zahlungen (Umsetzung Phase 4)
+
+### 35.1 Ablauf
+
+1. Nach jedem Bankimport mit Status `Importiert` oder `Teilfehler` reiht ERPverein den Abgleich nach dem Commit ein: Warteschlange `long`, deterministische Job-ID `erpverein-bank-reconcile-<Bankimport>`, `deduplicate`. Der Bankimport zeigt `reconciliation_status` (`Eingereiht`, `Abgeschlossen`, `Fehler`), `reconciliation_message` und `reconciled_at`; die Zähler „abgeglichen“ und „offen“ werden nach dem Job neu gezählt.
+2. Der Job läuft mit dem Benutzer, der ihn eingereiht hat (Kapitel 20.6). Er prüft zuerst die Rechte: Schreibrecht auf Einzugslauf, Einzugsposition und Bankumsatz, Buchungsrecht auf Bankumsatz und Zahlung, Anlegen von Zahlungen, Leserecht auf Rechnung und Vereinskonto. Fehlt ein Recht, bucht der Job nichts und nennt den Benutzer am Bankimport.
+3. Reihenfolge: angefangene Läufe fortsetzen (Wiederanlauf), dann Gutschriften mit der End-to-End-Referenz einer Position, dann Sammelgutschriften nach den Regeln in 35.2.
+4. Jeder Schritt läuft in einem eigenen Savepoint, jede Zahlung in einem weiteren. Deadlocks und Lock-Timeouts gibt der Job an Frappe zurück; Frappe wiederholt ihn. Ein anderer Fehler setzt nur diesen Job zurück und steht am Bankimport. Der Code ruft nie `frappe.db.commit()` auf.
+5. „Abgleich starten“ am Bankimport oder am Einzugslauf reiht denselben Job ein (`erpverein.api.bank_import.start_reconciliation`, `erpverein.api.sepa_collection.start_reconciliation`).
+
+### 35.2 Regeln der Zuordnung
+
+Die Regeln liegen ohne Frappe in `erpverein/services/sepa_settlement_matcher.py` und haben eigene Unit-Tests.
+
+| Signal | Regel |
+|---|---|
+| Betrag | gleich der Laufsumme (auf den Cent) |
+| Buchungsdatum | am oder nach dem Einzugsdatum, höchstens `settlement_tolerance_days` später (Exportprofil) |
+| „POSTEN nn“ | wenn vorhanden: gleich der Zahl der aktiven Positionen |
+| Laufname, `MsgId`, Bankreferenz | wenn vorhanden: Nur dieser Lauf kommt in Frage. Laufnamen werden auch ohne Trennzeichen erkannt. |
+
+1. Kandidaten-Bankumsätze: gebucht, Gutschrift, nichts zugeordnet, `erpverein_match_status` `Offen` oder `Manuelle Pruefung`, nicht schon einem Lauf zugeordnet. Sie brauchen die Kategorie `Lastschrift-Gutschrift` oder einen Laufnamen im Text. Andere Bankumsätze bleiben `Offen` (Phase 5).
+2. Kandidaten-Läufe: Sammelbuchung, Status `Exportiert`, `Bankreferenz erfasst` oder `Manuelle Pruefung`, ohne Sammelgutschrift und ohne bezahlte Position.
+3. ERPverein ordnet nur zu, wenn der Bankumsatz genau einen Lauf trifft und dieser Lauf von keinem anderen Bankumsatz getroffen wird.
+4. Passt nur ein Lauf nach Datum, Anzahl und Name, aber nicht im Betrag, entsteht keine Zahlung. Bankumsatz und Lauf gehen auf `Manuelle Pruefung`; der Grund nennt beide Beträge und die Differenz (T11). Ein späterer passender Bankumsatz kann den Lauf noch zuordnen.
+5. Mehrdeutige Fälle bekommen einen Grund, der die Läufe nennt. Ein Bankumsatz ohne passenden Lauf bekommt den Grund „Kein exportierter Einzugslauf passt“.
+6. Einzelbuchung (`BtchBookg = false`): Nennt eine Gutschrift die End-to-End-Referenz einer aktiven Position, gehört sie zu dieser Position. Der Betrag muss gleich sein, das Buchungsdatum darf nicht vor dem Einzugsdatum liegen. Sonst `Manuelle Pruefung` für Bankumsatz, Position und Lauf.
+
+### 35.3 Zahlung je Einzugsposition
+
+1. Vorprüfung: Rechnung gebucht, Customer und Unternehmen gleich, offener Betrag der Rechnung und der Zahlungsplanzeile mindestens der Positionsbetrag. Sonst entsteht keine Zahlung und die Position geht auf `Manuelle Pruefung` (Entscheidung des Benutzers vom 02.11.2026 für eine inzwischen anders bezahlte Rechnung).
+2. ERPverein erzeugt die Zahlung mit `get_payment_entry` aus ERPNext (`party_amount` = Positionsbetrag) und setzt: Buchungsdatum und `reference_date` = Buchungsdatum des Bankumsatzes, `bank_account` = Vereinskonto des Laufs, `mode_of_payment` = „SEPA-Lastschrift“, `reference_no` = End-to-End-Referenz, genau eine Referenz auf die Rechnung mit der Zahlungsbedingung der Position, `erpverein_sepa_collection_item` und `erpverein_bank_transaction`. ERPverein legt die Zahlung mit den Rechten des Benutzers an und bucht sie.
+3. ERPverein gleicht die neuen Zahlungen mit `reconcile_vouchers` ab (Abgleichsart „Matched“). ERPNext setzt `clearance_date` und den Status `Reconciled`. „Unreconcile“ im Banking-Bereich storniert deshalb keine Zahlung.
+4. Reicht der offene Betrag des Bankumsatzes nicht mehr (anders abgeglichen), entsteht keine weitere Zahlung.
+
+### 35.4 Status
+
+| Objekt | Status | Bedeutung |
+|---|---|---|
+| Einzugslauf | `Bankgutschrift erkannt` | Bankumsatz zugeordnet; Zahlungen oder Einzelgutschriften fehlen noch |
+| Einzugslauf | `Abgestimmt` | jede aktive Position bezahlt, jeder zugehörige Bankumsatz abgeglichen; `settled_at` gesetzt |
+| Einzugslauf | `Manuelle Pruefung` | Grund in `settlement_note` |
+| Einzugsposition | `Bezahlt` | Zahlung gebucht (`payment_entry`) |
+| Einzugsposition | `Manuelle Pruefung` | keine Zahlung; Grund in `processing_error` |
+| Bankumsatz (`erpverein_match_status`) | `Abgeglichen` | von ERPverein vollständig abgeglichen; `erpverein_match_note` nennt Lauf oder Position |
+| Bankumsatz (`erpverein_match_status`) | `Manuelle Pruefung` | Grund in `erpverein_match_note` |
+
+### 35.5 Wiederanlauf und Sperren
+
+1. Der Positionslink an der Zahlung ist eindeutig. Ein zweiter Lauf des Jobs erzeugt keine zweite Zahlung (Kapitel 15.8 und 22.2).
+2. Der Wiederanlauf setzt jeden Lauf mit `Bankgutschrift erkannt` oder `Manuelle Pruefung` fort, dessen Positionen schon einen Bankumsatz haben. Er übernimmt eine vorhandene gebuchte Zahlung, bucht nur fehlende Zahlungen und gleicht nur nicht verknüpfte Zahlungen ab.
+3. Eine stornierte ERPverein-Zahlung setzt Position, Lauf und Bankumsatz auf `Manuelle Pruefung`. ERPverein erzeugt für diese Position keine neue Zahlung. Das Storno braucht Schreibrecht auf die Position.
+4. Ein Lauf mit Bankgutschrift oder Zahlungen lässt sich nicht mehr stornieren.
+5. Ein Hook an `Payment Entry` (`validate`) verhindert, dass ein Benutzer die ERPverein-Felder einer Zahlung von Hand setzt.
+
+### 35.6 Feldnamen der Umsetzung
+
+| DocType | Felder |
+|---|---|
+| `SEPA Einzugslauf` | `settlement_bank_transaction`, `settled_at`, `settlement_note` |
+| `SEPA Einzugsposition` | `payment_entry`, `settlement_bank_transaction` |
+| `ERPverein Bankimport` | `reconciliation_status`, `reconciled_at`, `reconciliation_message` |
+| `Payment Entry` (Custom Fields) | `erpverein_sepa_collection_item` (eindeutig), `erpverein_bank_transaction` |
+| `Bank Transaction` (Custom Field) | `erpverein_match_note` |
+
+### 35.7 Anpassen nach dem echten Abruf
+
+| Was | Wo |
+|---|---|
+| Kategorien, die als Sammelgutschrift gelten | `SETTLEMENT_CATEGORIES` in `sepa_settlement_matcher.py` |
+| Muster „POSTEN nn“ | `POSITION_COUNT_PATTERN` |
+| Muster des Laufnamens, Mindestlänge freier Referenzen | `RUN_NAME_PATTERN`, `MIN_REFERENCE_LENGTH` |
+| Toleranz in Kalendertagen | Exportprofil, Feld `settlement_tolerance_days` |
+| Codes und Texte der Klassifikation | `bank_statement_parser.py` (Kapitel 34.6) |
+
+Die `PmtInfId` ist der Laufname (20 Zeichen). Eine MT940-Kundenreferenz fasst nur 16 Zeichen, und im camt-Abruf liefert AqBanking die `PmtInfId` nicht (Kapitel 32.2, P6). Die Zuordnung stützt sich deshalb vor allem auf Betrag, Datum und „POSTEN nn“.
+
+### 35.8 Offene Punkte
+
+1. Ein echter Abruf mit der Vorlage `v3` fehlt. Danach werden Kategorie, Text und Füllgrad der HVB-Sammelgutschrift geprüft (Kapitel 34.8).
+2. Eine Position in `Manuelle Pruefung` lässt sich nicht als erledigt markieren. Löst der Kassenwart den Fall im Banking-Bereich, bleibt der Lauf in `Manuelle Pruefung`.
+3. Rejects vor der Gutschrift (Bankbetrag kleiner als die Laufsumme) und Rücklastschriften kommen mit Phase 6.

@@ -1,6 +1,6 @@
 # Anleitung für den Kassenwart
 
-Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug und den Bankimport. Der automatische Abgleich ergänzt die Phasen 4 bis 6.
+Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug, den Bankimport und den automatischen Abgleich der Sammelgutschrift. Selbstzahler und Rücklastschriften folgen mit den Phasen 5 und 6.
 
 Kennzeichen:
 
@@ -20,6 +20,7 @@ Führe diese Schritte einmal aus. Beginne mit der Test-Site.
 3. Das Migrate legt die ERPverein-Felder, die Zahlungsweisen „SEPA-Lastschrift“ und „Überweisung“ und die Zahlungsbedingungen „ERPverein Rate 01“ bis „ERPverein Rate 60“ an.
 4. Das Migrate legt auch die Listen „SEPA-Einzugsläufe“ und „SEPA-Einzugspositionen“ an.
 5. Das Migrate legt die Liste „Bankimporte“ und die ERPverein-Felder an Bankumsätzen (`Bank Transaction`) an. In „Vereinsverwaltung“ stehen jetzt auch „Bankimporte“ und „Bankumsätze“.
+6. Das Migrate legt die Felder für den Abgleich an: an Zahlungen (`Payment Entry`) „SEPA-Einzugsposition“ und „ERPverein Bankumsatz“, am Bankumsatz „ERPverein Hinweis zum Abgleich“, am Einzugslauf und am Bankimport je einen Abschnitt „Abgleich“.
 
 ### 1.2 E-Mail-Sperre auf der Test-Site
 
@@ -105,6 +106,7 @@ Wieder in ERPNext:
    - Vorlauf: 1 Geschäftstag
    - Einreichung frühestens: 15 Geschäftstage vor dem Einzug
    - Sammelbuchung als Standard: an
+   - Toleranz der Sammelgutschrift: 5 Kalendertage (Abschnitt 6.2)
    - Höchstzahl Positionen je Datei: 1000
    - Vorlage für den Verwendungszweck: `Rechnung {invoice}` oder zum Beispiel `Beitrag {period_from} bis {period_to} Rechnung {invoice}`
    - Gebührenkonto: 68550
@@ -149,7 +151,7 @@ Wieder in ERPNext:
    - `Accounts User` oder `Accounts Manager` für Rechnungen und Bankdaten
 2. Ein Benutzer ohne Accounts-Rolle sieht keine Einzugsläufe, keine Einzugspositionen und keine Lastschriftdatei.
 3. Gib dem Kassenwart alle Rollen aus Abschnitt 20.6 der Spezifikation: `System Manager`, `Accounts Manager`, `Accounts User`, `Sales Master Manager`, `Sales User`.
-4. Der Bankimport braucht `Accounts User` oder `Accounts Manager`. n8n bekommt dafür einen eigenen API-Benutzer (Abschnitt 5.3).
+4. Bankimport und Abgleich laufen mit dem Benutzer, dem der API-Schlüssel in n8n gehört. Er braucht die Rollen des Kassenwarts (Abschnitt 5.3).
 
 ### 1.11 Mieten zum Monatsersten
 
@@ -232,6 +234,7 @@ Einmal im Monat bereitest du alle fälligen Lastschriften vor. ERPverein erzeugt
 ```text
 Fällige Lastschriften vorbereiten → Vorschau → Einzugslauf (Entwurf) → Lauf prüfen (Geprüft)
 → pain.008-Datei erzeugen (Exportiert) → Upload in PayGate → Bankreferenz erfassen
+→ Sammelgutschrift im Bankimport → automatischer Abgleich (Abgestimmt)
 ```
 
 1. Ein Einzugslauf hat genau ein Einzugsdatum. Bei mehreren Einzugsdaten entstehen mehrere Einzugsläufe.
@@ -240,7 +243,7 @@ Fällige Lastschriften vorbereiten → Vorschau → Einzugslauf (Entwurf) → La
 4. Das Einzugsdatum liegt mindestens 2 Geschäftstage nach heute. So bleibt der Upload bis 07:00 Uhr am Vortag möglich.
 5. ERPverein zieht keine Zeile mit einer Fälligkeit vor dem Go-live-Stichtag ein.
 
-**VORSICHT:** Die Datei bucht keine Zahlung. Die Rechnung bleibt offen, bis der Bankumsatz da ist (Phasen 3 und 4).
+**VORSICHT:** Die Datei bucht keine Zahlung. Die Rechnung bleibt offen, bis die Sammelgutschrift im Bankimport ist. Dann bucht ERPverein die Zahlungen (Abschnitt 6).
 
 Empfohlener Rhythmus:
 
@@ -325,6 +328,7 @@ Den Verwendungszweck einer Einzugsposition änderst du im Status „Entwurf“ d
 1. Vor dem Export: Klicke „Lauf stornieren“ und gib einen Grund ein. Die Zeilen sind danach frei für einen neuen Einzugslauf.
 2. Eine einzelne Position stornierst du in der Position: „Position stornieren“.
 3. Nach dem Export stornierst du nur den ganzen Lauf. Bestätige dabei, dass die Bank die Datei nicht ausführt.
+4. Nach der Bankgutschrift lässt sich ein Lauf nicht mehr stornieren. Ab dann gilt Abschnitt 6.
 
 **VORSICHT:** Storniere einen exportierten Lauf nur, wenn die Datei nicht hochgeladen, abgelehnt oder nicht freigegeben ist. Sonst droht ein doppelter Einzug.
 
@@ -336,12 +340,13 @@ Eine Rechnung mit einer aktiven Einzugsposition lässt sich nicht stornieren. Ih
 2. Setze den Haken „Einzelbuchung (BtchBookg = false)“.
 3. Wähle in der Vorschau nur die gewünschten Zeilen aus.
 4. Die Bank bucht dann jede Lastschrift einzeln auf dem Vereinskonto. Es gibt keine Sammelgutschrift.
+5. ERPverein ordnet jede Einzelgutschrift über die End-to-End-Referenz genau einer Einzugsposition zu. Das braucht den erweiterten Export der Banking-Webtop (Abschnitt 5.10).
 
 ### 3.10 Was noch fehlt
 
 1. Bankumsätze kommen seit Phase 3 über n8n nach ERPNext (Abschnitt 5).
-2. Ab Phase 4 bucht ERPverein die Zahlungen zur Sammelgutschrift und markiert die Rechnungen als bezahlt.
-3. Bis dahin bleiben die Rechnungen offen. Rücklastschriften buchst du bis Phase 6 im Banking-Bereich `/banking`.
+2. Seit Phase 4 bucht ERPverein die Zahlungen zur Sammelgutschrift und markiert die Rechnungen als bezahlt (Abschnitt 6).
+3. Rücklastschriften buchst du bis Phase 6 im Banking-Bereich `/banking`.
 
 ---
 
@@ -367,6 +372,7 @@ Die Banking-Webtop ruft die Umsätze bei der HVB ab. n8n reicht die Datei unver�
 ```text
 Banking-Webtop (Kontoumsätze abrufen) → n8n-Webhook → ERPverein-Schnittstelle
 → Bankimport (Originaldatei, Prüfsumme, Zähler) → Bankumsätze (gebucht, Status Unreconciled)
+→ Abgleich im Hintergrund (Abschnitt 6)
 ```
 
 1. Ein Abruf ergibt genau einen Bankimport. Der Bankimport hält die Originaldatei als private Datei.
@@ -374,7 +380,7 @@ Banking-Webtop (Kontoumsätze abrufen) → n8n-Webhook → ERPverein-Schnittstel
 3. Ein Abruf überschneidet sich mit dem letzten Abruf um 14 Tage. ERPverein erkennt die doppelten Umsätze und legt sie nicht erneut an.
 4. ERPverein übernimmt nur Umsätze ab dem Go-live-Stichtag aus dem SEPA-Exportprofil. Ältere Umsätze kommen aus der Historie.
 5. ERPverein ordnet jedem Umsatz eine Kategorie zu, zum Beispiel „Lastschrift-Gutschrift“ oder „Bankgebuehr“. Die Kategorie ist ein Hinweis. Sie bucht nichts.
-6. Der Bankimport bucht keine Zahlung. Die Rechnungen bleiben offen, bis der Abgleich läuft (Phasen 4 bis 6).
+6. Der Bankimport selbst bucht keine Zahlung. Nach jedem Bankimport startet ERPverein den Abgleich im Hintergrund (Abschnitt 6).
 
 **VORSICHT:** Die Datei enthält echte Namen, IBANs und Verwendungszwecke. Speichere sie nirgends außer in ERPverein.
 
@@ -388,49 +394,52 @@ Banking-Webtop (Kontoumsätze abrufen) → n8n-Webhook → ERPverein-Schnittstel
 
 **HINWEIS:** Der Alias darf nur Kleinbuchstaben, Ziffern, Punkt, Bindestrich und Unterstrich enthalten. Nur ein Firmen-Bankkonto darf einen Alias haben.
 
-### 5.3 API-Benutzer für n8n
+### 5.3 API-Schlüssel für n8n
 
-n8n meldet sich mit einem eigenen Benutzer bei ERPverein an. Dieser Benutzer bekommt nur die Rechte, die der Import braucht.
+n8n meldet sich mit einem API-Schlüssel bei ERPverein an. Bankimport und Abgleich laufen mit den Rechten des Benutzers, dem dieser Schlüssel gehört. ERPverein hat dafür kein eigenes Rechtesystem.
 
-1. Lege einen `User` an, zum Beispiel `n8n-bankimport@<vereinsdomain>`.
-2. Gib ihm nur die Rolle `Accounts User`.
-3. Öffne beim Benutzer den Bereich `API Access`. Klicke `Generate Keys`.
-4. Kopiere den API-Schlüssel und das API-Geheimnis. ERPNext zeigt das Geheimnis nur einmal an.
+1. Nimm den Benutzer des Kassenwarts. Er hat alle Rollen aus Abschnitt 1.10.
+2. Öffne den Benutzer. Öffne den Bereich `API Access`. Klicke `Generate Keys`.
+3. Kopiere den API-Schlüssel und das API-Geheimnis. ERPNext zeigt das Geheimnis nur einmal an.
+4. Trage beide in die n8n-Zugangsdaten „ERPverein Bankimport API“ ein (Abschnitt 5.4).
 
-**VORSICHT:** Schlüssel und Geheimnis gehören nur in die Zugangsdaten von n8n. Schreibe sie nicht in Dateien, E-Mails oder Git.
+**HINWEIS:** Ein eigener Benutzer für n8n ist möglich. Gib ihm dann dieselben Rollen wie dem Kassenwart. Mit nur `Accounts User` gelingt der Bankimport, der Abgleich aber nicht. Der Bankimport zeigt dann „Status des Abgleichs: Fehler“ und nennt die fehlenden Rechte. Das gilt auch für einen API-Benutzer, den du nach der Anleitung von Phase 3 angelegt hast.
 
-**HINWEIS:** Ab Phase 4 gleicht ERPverein die Umsätze mit diesem Benutzer ab. Dann prüft ERPverein, ob der Benutzer weitere Rollen braucht.
+**VORSICHT:** Schlüssel und Geheimnis gehören nur in die Zugangsdaten von n8n. Schreibe sie nicht in Dateien, E-Mails oder Git. „Generate Keys“ erzeugt ein neues Geheimnis. Ändere danach die Zugangsdaten in n8n.
 
 ### 5.4 n8n-Workflow einrichten
 
 Die Workflow-Datei liegt außerhalb des Repositorys: `.private/n8n/erpverein-bankimport.json`.
 
 1. Lege in n8n zwei Zugangsdaten vom Typ „Header Auth“ an:
-   - „ERPverein Banking Webhook Token“: Name `Authorization`, Wert `Bearer <Token>`. Den Token findest du auf dem Server in `/srv/lab/secrets/banking-webhook-token.txt` (Standardpfad des Banking-Installers).
+   - „ERPverein Banking Webhook Token“: Name `Authorization`, Wert `Bearer <Token>`. Der Token ist das Secret `webhook_token` des VPSmith-Pakets „banking“.
    - „ERPverein Bankimport API“: Name `Authorization`, Wert `token <API-Schlüssel>:<API-Geheimnis>` (Abschnitt 5.3).
 2. Importiere die Workflow-Datei in n8n.
 3. Wähle in jedem Knoten die passenden Zugangsdaten.
-4. Prüfe die Workflow-Einstellungen: „Save successful production executions“, „Save failed production executions“ und „Save manual executions“ sind aus. Die Daten enthalten IBANs.
-5. Aktiviere den Workflow. Der Webhook hat den Pfad `/webhook/erpverein-bank-import`.
+4. Prüfe im Knoten „ERPverein Bankimport“ die Adresse. Sie beginnt mit `http://verein-api:8080`. `verein-api` ist der Standard des Eingabefelds `api_alias` im VPSmith-Paket „erpverein“. Hast du dort einen anderen Alias eingetragen, ersetze den Namen.
+5. Prüfe die Workflow-Einstellungen: „Save successful production executions“, „Save failed production executions“ und „Save manual executions“ sind aus. Die Daten enthalten IBANs.
+6. Aktiviere den Workflow. Der Webhook hat den Pfad `/webhook/erpverein-bank-import`. Das ist der Standard des Eingabefelds `webhook_path` im Paket „banking“.
+
+**HINWEIS:** n8n darf ERPverein nur aufrufen, wenn der Alias im n8n-Eingabefeld `ssrf_allowed_hostnames` steht. Das hast du bei der Installation von ERPverein eingetragen. Trage den Webhook-Pfad nie unter `public_webhook_paths` ein.
 
 Der Workflow hat drei Knoten:
 
 | Knoten | Aufgabe |
 |---|---|
 | Banking-Webtop Webhook | Nimmt Manifest und Umsatzdatei an. Prüft den Token. |
-| ERPverein Bankimport | Sendet beide Dateien unverändert an `erpverein.api.bank_import.import_statement`. |
+| ERPverein Bankimport | Sendet beide Dateien unverändert an `erpverein.api.bank_import.import_statement` über `http://verein-api:8080`. |
 | Antwort mit Zaehlern | Antwortet der Webtop nur mit Zählern. Bei „Teilfehler“ oder „Fehler“ antwortet er mit HTTP 422. |
 
-**HINWEIS:** Tauschst du den Token der Banking-Webtop (`ROTATE_BANKING_TOKEN`), ändere danach auch die Zugangsdaten „ERPverein Banking Webhook Token“ in n8n.
+**HINWEIS:** Änderst du das Secret `webhook_token` in VPSmith, wende das Paket „banking“ neu an. Ändere danach auch die Zugangsdaten „ERPverein Banking Webhook Token“ in n8n.
 
 ### 5.5 Umsätze abrufen
 
 1. Öffne die Banking-Webtop.
 2. Klicke auf dem Desktop „Kontoumsaetze abrufen“.
 3. Gib die PIN ein. Bestätige die TAN.
-4. Die Webtop meldet „Upload successful“. Dann ist der Abruf in ERPverein.
-5. Meldet die Webtop „n8n returned HTTP 422“, ist der Bankimport mit „Teilfehler“ oder „Fehler“ beendet. Gehe vor wie in 5.7.
-6. Meldet die Webtop „CSV export is empty“, gab es im Zeitraum keine Umsätze. Es gibt nichts zu tun.
+4. Die Webtop meldet „Upload successful.“. Dann ist der Abruf in ERPverein.
+5. Meldet die Webtop „ERROR: n8n answered HTTP 422 for request …“, ist der Bankimport mit „Teilfehler“ oder „Fehler“ beendet. Gehe vor wie in 5.7.
+6. Meldet die Webtop „ERROR: the CSV export is empty“, gab es im Zeitraum keine Umsätze. Es gibt nichts zu tun.
 
 Rufe die Umsätze mindestens einmal pro Woche ab. Ein Abruf umfasst die letzten 14 Tage. Nach längerer Pause fehlen sonst Umsätze.
 
@@ -457,10 +466,11 @@ Rufe die Umsätze mindestens einmal pro Woche ab. Ein Abruf umfasst die letzten 
 | Vor dem Stichtag | Umsätze vor dem Go-live-Stichtag. ERPverein übernimmt sie nicht. |
 | Ohne Betrag | Zeilen mit Betrag 0,00. ERPverein übernimmt sie nicht. |
 | Fehlerhafte Zeilen | Zeilen, die ERPverein nicht lesen oder nicht anlegen konnte |
-| Abgeglichen, Offen | Status der neuen Bankumsätze in ERPNext |
+| Abgeglichen, Offen | Status der neuen Bankumsätze in ERPNext nach dem letzten Abgleich |
 
-4. Klicke „Bankumsätze anzeigen“. Die Liste zeigt die Umsätze dieses Bankimports.
-5. Klicke „Banking-Bereich öffnen“. Dort gleichst du die Umsätze ab, bis die Phasen 4 bis 6 das automatisch tun.
+4. Prüfe den Abschnitt „Abgleich“: „Status des Abgleichs“ und „Ergebnis des Abgleichs“ (Abschnitt 6.1).
+5. Klicke „Bankumsätze anzeigen“. Die Liste zeigt die Umsätze dieses Bankimports.
+6. Klicke „Banking-Bereich öffnen“. Dort gleichst du die Umsätze ab, die ERPverein nicht automatisch abgleicht.
 
 Jeder Bankumsatz zeigt im Abschnitt „ERPverein“: Kategorie, Abgleich, Wertstellung, SEPA-Referenzen, Kundenreferenz, Primanota, Textschlüssel, Bankimport und Zeile in der Originaldatei.
 
@@ -501,16 +511,118 @@ Jeder Bankumsatz zeigt im Abschnitt „ERPverein“: Kategorie, Abgleich, Wertst
 
 ### 5.10 Erweiterter Export der Banking-Webtop
 
-Der heutige Export der Banking-Webtop enthält nur Datum, Betrag, Konto, Name, IBAN und Verwendungszweck. Für den Abgleich der Lastschriften fehlen Wertstellung, End-to-End-Referenz, Mandatsreferenz, Gläubiger-ID, Bankreferenz und Buchungstext.
+Der Standardexport von AqBanking enthält nur Datum, Betrag, Konto, Name, IBAN und Verwendungszweck. Für den Abgleich der Lastschriften fehlen Wertstellung, End-to-End-Referenz, Mandatsreferenz, Gläubiger-ID, Bankreferenz und Buchungstext. Der erweiterte Export liefert sie (Entscheidung O7).
 
-1. Der Vorschlag für den erweiterten Export liegt in `.private/handoff/2026-11-02-aqbanking-export-v3.diff`. Er ändert `/workspace/05-banking-generator.sh` (offener Punkt O7).
-2. ERPverein liest beide Formate. Du kannst jederzeit umstellen. Umsätze aus dem alten und dem neuen Format erkennt ERPverein als dieselben Umsätze.
-3. Nach der Umstellung baust du die Banking-Webtop neu. Danach rufst du einmal ab.
-4. Öffne den Bankimport. Das Feld „Fuellgrad je Spalte“ zeigt je Spalte nur die Anzahl gefüllter Werte, keine Inhalte. Teile diese Zahlen für den Phasenbericht.
+1. Den Export erzeugt `image/banking-fetch` im VPSmith-Paket „banking“. Die Fassung mit dem erweiterten Export schreibt eine Kopfzeile mit 22 Spalten und meldet das Schema `erpverein.aqbanking.listtrans-template.v3`.
+2. Übernimm das geänderte Paket in dein VPSmith-Projekt. Speichere es und gib eine neue Version frei. VPSmith erhöht die Version selbst.
+3. Wende „banking“ an. VPSmith baut das Desktop-Image neu, weil sich `image/` geändert hat. Das dauert eine Weile, denn AqBanking wird neu übersetzt. Die HVB-Einrichtung bleibt erhalten.
+4. ERPverein liest beide Formate. Umsätze aus dem alten und dem neuen Format erkennt ERPverein als dieselben Umsätze. Der erste Abruf nach der Umstellung legt keine Duplikate an.
+5. Rufe einmal ab (5.5). Öffne den Bankimport. Das Feld „Fuellgrad je Spalte“ zeigt je Spalte nur die Anzahl gefüllter Werte, keine Inhalte. Teile diese Zahlen für den Phasenbericht.
 
 ### 5.11 Was noch fehlt
 
-1. Phase 4: ERPverein ordnet die Sammelgutschrift dem Einzugslauf zu und bucht je Einzugsposition eine Zahlung.
-2. Phase 5: ERPverein bucht Überweisungen von Selbstzahlern mit sicherem Signal und zeigt alle offenen Fälle im Arbeitsvorrat.
-3. Phase 6: ERPverein bucht Rücklastschriften mit Gegenbuchung und Gebühr.
-4. Bis dahin gleichst du die Bankumsätze im Banking-Bereich `/banking` von Hand ab.
+1. Phase 5: ERPverein bucht Überweisungen von Selbstzahlern mit sicherem Signal und zeigt alle offenen Fälle im Arbeitsvorrat.
+2. Phase 6: ERPverein bucht Rücklastschriften mit Gegenbuchung und Gebühr.
+3. Bis dahin gleichst du diese Bankumsätze im Banking-Bereich `/banking` von Hand ab.
+
+---
+
+## 6. Automatischer Abgleich der Sammelgutschrift
+
+### 6.1 Überblick
+
+Nach jedem Bankimport startet ERPverein den Abgleich im Hintergrund. ERPverein sucht zu jeder Lastschrift-Gutschrift den passenden Einzugslauf. Passt genau ein Lauf, bucht ERPverein je Einzugsposition eine Zahlung und gleicht alle Zahlungen mit dem Bankumsatz ab.
+
+```text
+Bankimport → Abgleich im Hintergrund → Einzugslauf „Bankgutschrift erkannt“
+→ je Einzugsposition eine gebuchte Zahlung (Payment Entry) → Abgleich mit dem Bankumsatz
+→ Einzugslauf „Abgestimmt“, Positionen „Bezahlt“, Bankumsatz „Abgeglichen“ (ERPNext: Reconciled)
+```
+
+1. Der Abgleich dauert Sekunden bis wenige Minuten. Lade das Formular danach neu.
+2. Der Bankimport zeigt das Ergebnis im Abschnitt „Abgleich“, zum Beispiel „12 Zahlungen gebucht, 1 Einzugslaeufe abgestimmt, 0 Bankumsaetze zur manuellen Pruefung“.
+3. Die Zahlung hat das Buchungsdatum des Bankumsatzes, die End-to-End-Referenz der Position als Referenznummer und die Zahlungsweise „SEPA-Lastschrift“.
+4. Die Zahlung bezahlt genau die Zahlungsplanzeile der Einzugsposition. Die Rechnung steht danach auf „Paid“ oder „Partly Paid“.
+5. Der Abgleich ist wiederholbar. Er bucht nie eine zweite Zahlung für dieselbe Einzugsposition.
+
+**VORSICHT:** Die pain.008-Datei bucht nichts. Erst der echte Bankumsatz löst die Zahlungen aus.
+
+### 6.2 So erkennt ERPverein die Sammelgutschrift
+
+ERPverein prüft jeden offenen Bankumsatz mit der Kategorie „Lastschrift-Gutschrift“ gegen alle exportierten Einzugsläufe des Vereinskontos:
+
+| Signal | Regel |
+|---|---|
+| Betrag | gleich der Summe des Einzugslaufs |
+| Buchungsdatum | am oder nach dem Einzugsdatum, höchstens „Toleranz der Sammelgutschrift“ Kalendertage später (Exportprofil, Standard 5) |
+| „POSTEN nn“ im Verwendungszweck | wenn vorhanden: gleich der Zahl der Einzugspositionen |
+| Name des Laufs (`SEPA-LAUF-…`), MsgId oder Bankreferenz (3.7) | wenn die Bank sie liefert: Sie bestimmen den Lauf |
+
+1. ERPverein ordnet nur zu, wenn genau ein Lauf passt und dieser Lauf zu keinem anderen Bankumsatz passt.
+2. Einen Bankumsatz mit anderer Kategorie lässt ERPverein offen. Ausnahme: Er nennt den Namen eines Einzugslaufs.
+3. Einzellastschrift (3.9): ERPverein ordnet jede Gutschrift über die End-to-End-Referenz genau einer Position zu. Der Betrag muss gleich sein. Der Lauf steht auf „Bankgutschrift erkannt“, bis jede Position bezahlt ist.
+
+**HINWEIS:** Welche Felder die HVB im Abruf füllt, zeigt erst ein echter Abruf (Abschnitt 5.10). Die Regeln lassen sich danach anpassen.
+
+### 6.3 Status
+
+| Einzugslauf | Bedeutung |
+|---|---|
+| Bankgutschrift erkannt | Die Gutschrift ist zugeordnet. Es fehlen noch Zahlungen oder, bei Einzelbuchung, noch Gutschriften. |
+| Abgestimmt | Jede Position hat eine gebuchte Zahlung. Jeder zugehörige Bankumsatz ist abgeglichen. |
+| Manuelle Pruefung | ERPverein hat etwas nicht automatisch erledigt. Den Grund nennt das Feld „Hinweis zum Abgleich“. |
+
+| Einzugsposition | Bedeutung |
+|---|---|
+| Bezahlt | Die Zahlung ist gebucht. Das Feld „Zahlung“ zeigt sie. |
+| Manuelle Pruefung | ERPverein hat keine Zahlung gebucht. Den Grund nennt das Feld „Pruefergebnis“. |
+
+| Bankumsatz, Feld „ERPverein Abgleich“ | Bedeutung |
+|---|---|
+| Offen | ERPverein hat den Umsatz noch nicht zugeordnet. |
+| Abgeglichen | ERPverein hat den Umsatz vollständig abgeglichen. |
+| Manuelle Pruefung | Den Grund nennt das Feld „ERPverein Hinweis zum Abgleich“. |
+
+### 6.4 Manuelle Prüfung
+
+| Grund | Was du tust |
+|---|---|
+| Der Betrag … weicht von der Summe … des Einzugslaufs … ab | Prüfe in PayGate, ob die Bank Lastschriften vor der Gutschrift abgelehnt hat. ERPverein bucht nichts. Buche die Zahlungen im Banking-Bereich von Hand. |
+| Mehrere Einzugslaeufe passen | Prüfe Datum und Summe. Nennt die Bank eine Referenz im Verwendungszweck, erfasse sie im richtigen Lauf als Bankreferenz (3.7). Klicke dann „Abgleich starten“ (6.5). |
+| Mehrere Bankumsaetze passen zum Einzugslauf | Prüfe, ob die Bank doppelt gebucht hat. Gleiche den richtigen Umsatz im Banking-Bereich ab. |
+| Kein exportierter Einzugslauf passt | Prüfe, ob die Gutschrift aus einem Einzug von Vereinsmeister stammt. Kam sie später als die Toleranz, erhöhe die Toleranz im Exportprofil und klicke „Abgleich starten“. |
+| POSTEN … passt zu keinem Einzugslauf | Prüfe die Anzahl in PayGate. Buche die Zahlungen im Banking-Bereich von Hand. |
+| Die Rechnung … ist inzwischen anders bezahlt | Der Zahler hat zusätzlich überwiesen. Entscheide: erstatten oder als Vorauszahlung behalten. Buche die Zahlung im Banking-Bereich und gleiche sie mit dem Bankumsatz ab. |
+| ERPverein konnte die Zahlung nicht buchen | Behebe den Grund, zum Beispiel ein gesperrtes Geschäftsjahr. Klicke „Abgleich starten“. ERPverein bucht nur die fehlenden Zahlungen. |
+| Die Zahlung … wurde storniert | Kläre den Fall im Banking-Bereich. ERPverein bucht für diese Position keine neue Zahlung. |
+| Der Betrag … weicht vom Betrag der Position … ab | Einzelbuchung: Prüfe die Gutschrift. Buche die Zahlung im Banking-Bereich von Hand. |
+| Die End-to-End-Referenz gehoert zur Position … | Die Bank hat eine Position gutgeschrieben, die schon bezahlt oder storniert ist. Kläre den Fall mit der Bank. |
+| Der Benutzer … hat nicht alle Rechte fuer den Abgleich | Gib dem Benutzer des API-Schlüssels die Rollen des Kassenwarts oder nutze den Schlüssel des Kassenwarts (5.3). Klicke dann „Abgleich starten“. |
+
+### 6.5 Abgleich erneut starten
+
+1. Öffne den Bankimport oder den Einzugslauf.
+2. Klicke „Abgleich starten“.
+3. ERPverein prüft alle offenen Bankumsätze des Vereinskontos und alle angefangenen Einzugsläufe erneut. ERPverein bucht nur fehlende Zahlungen.
+4. Lade das Formular nach einer Minute neu.
+
+### 6.6 Was du nicht tust
+
+**VORSICHT:** Storniere keine Zahlung, die ERPverein gebucht hat. Die Position geht dann auf „Manuelle Pruefung“. ERPverein bucht für sie keine neue Zahlung.
+
+**VORSICHT:** Lege keine `Bank Transaction Rule` für Lastschrift-Gutschriften an. Eine Regel bucht den Umsatz sonst an ERPverein vorbei.
+
+**HINWEIS:** Löst du im Banking-Bereich den Abgleich eines Bankumsatzes, bleiben die Zahlungen gebucht. Verknüpfe sie dort wieder.
+
+### 6.7 Test auf der Test-Site
+
+Auf der Test-Site kommt keine echte Sammelgutschrift, denn du lädst dort keine Datei bei der Bank hoch. Teste mit einer synthetischen Gutschrift.
+
+1. Setze den Go-live-Stichtag der Test-Site in die Vergangenheit (5.9).
+2. Bereite einen Einzugslauf mit wenigen Positionen vor. Prüfe ihn und erzeuge die Datei (3.2 bis 3.5). Lade die Datei nie bei der Bank hoch.
+3. Erzeuge mit dem Testwerkzeug aus dem Phasenbericht eine synthetische Gutschrift: Betrag gleich Summe des Laufs, Datum gleich Einzugsdatum, „POSTEN“ gleich Anzahl der Positionen.
+4. Sende sie mit dem Befehl aus dem Phasenbericht an ERPverein. Der Bankimport startet den Abgleich.
+5. Prüfe: Einzugslauf „Abgestimmt“, Positionen „Bezahlt“, Rechnungen „Paid“, Bankumsatz „Reconciled“.
+6. Wiederhole den Test mit einem anderen Lauf und einem um 1,00 EUR kleineren Betrag. Prüfe: keine Zahlung, Lauf und Bankumsatz auf „Manuelle Pruefung“ mit Grund.
+
+**VORSICHT:** Die Test-Site enthält danach gebuchte Testzahlungen. Setze sie vor dem Go-live neu auf (E21).

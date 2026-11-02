@@ -42,7 +42,10 @@ BANK_TRANSACTION_TEXT_KEY_FIELDNAME = "erpverein_text_key"
 BANK_TRANSACTION_IMPORT_BATCH_FIELDNAME = "erpverein_import_batch"
 BANK_TRANSACTION_SOURCE_ROW_FIELDNAME = "erpverein_source_row_number"
 BANK_TRANSACTION_FINGERPRINT_FIELDNAME = "erpverein_source_fingerprint"
+BANK_TRANSACTION_MATCH_NOTE_FIELDNAME = "erpverein_match_note"
 BANK_MATCH_STATUS_OPTIONS = ("Offen", "Abgeglichen", "Vorschlag", "Manuelle Pruefung")
+PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME = "erpverein_sepa_collection_item"
+PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME = "erpverein_bank_transaction"
 
 
 def get_custom_fields() -> dict:
@@ -330,10 +333,19 @@ def get_custom_fields() -> dict:
                 "in_standard_filter": 1,
             },
             {
+                "fieldname": BANK_TRANSACTION_MATCH_NOTE_FIELDNAME,
+                "label": "ERPverein Hinweis zum Abgleich",
+                "fieldtype": "Small Text",
+                "insert_after": BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                "allow_on_submit": 1,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
                 "fieldname": BANK_TRANSACTION_VALUE_DATE_FIELDNAME,
                 "label": "Wertstellung",
                 "fieldtype": "Date",
-                "insert_after": BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                "insert_after": BANK_TRANSACTION_MATCH_NOTE_FIELDNAME,
                 "no_copy": 1,
                 "read_only": 1,
             },
@@ -422,6 +434,28 @@ def get_custom_fields() -> dict:
                 "unique": 1,
             },
         ],
+        "Payment Entry": [
+            {
+                "fieldname": PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
+                "label": "SEPA-Einzugsposition",
+                "fieldtype": "Link",
+                "options": "SEPA Einzugsposition",
+                "insert_after": "clearance_date",
+                "description": "Einzugsposition, aus der ERPverein diese Zahlung erzeugt hat.",
+                "no_copy": 1,
+                "read_only": 1,
+                "unique": 1,
+            },
+            {
+                "fieldname": PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
+                "label": "ERPverein Bankumsatz",
+                "fieldtype": "Link",
+                "options": "Bank Transaction",
+                "insert_after": PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+        ],
     }
 
 
@@ -465,6 +499,7 @@ def remove_custom_fields() -> None:
                 BANK_TRANSACTION_SECTION_FIELDNAME,
                 BANK_TRANSACTION_CATEGORY_FIELDNAME,
                 BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
+                BANK_TRANSACTION_MATCH_NOTE_FIELDNAME,
                 BANK_TRANSACTION_VALUE_DATE_FIELDNAME,
                 BANK_TRANSACTION_END_TO_END_FIELDNAME,
                 BANK_TRANSACTION_MANDATE_FIELDNAME,
@@ -477,5 +512,6 @@ def remove_custom_fields() -> None:
                 BANK_TRANSACTION_SOURCE_ROW_FIELDNAME,
                 BANK_TRANSACTION_FINGERPRINT_FIELDNAME,
             ],
+            "Payment Entry": [PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME, PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME],
         }
     )

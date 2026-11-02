@@ -35,6 +35,11 @@
   "unreconciled_count",
   "started_at",
   "completed_at",
+  "reconciliation_section",
+  "reconciliation_status",
+  "reconciled_at",
+  "reconciliation_column_break",
+  "reconciliation_message",
   "errors_section",
   "error_message",
   "import_errors",
@@ -239,6 +244,38 @@
    "read_only": 1
   },
   {
+   "fieldname": "reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "Abgleich"
+  },
+  {
+   "fieldname": "reconciliation_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Status des Abgleichs",
+   "no_copy": 1,
+   "options": "\nEingereiht\nAbgeschlossen\nFehler",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_at",
+   "fieldtype": "Datetime",
+   "label": "Abgleich beendet am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reconciliation_message",
+   "fieldtype": "Small Text",
+   "label": "Ergebnis des Abgleichs",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "collapsible": 1,
    "collapsible_depends_on": "eval:doc.error_count || doc.error_message",
    "fieldname": "errors_section",
@@ -351,7 +388,7 @@
    "link_fieldname": "erpverein_import_batch"
   }
  ],
- "modified": "2026-11-02 12:00:00.000000",
+ "modified": "2026-11-02 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "ERPverein Bankimport",
