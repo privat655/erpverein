@@ -6,7 +6,7 @@ ERPNext/Frappe custom app for Vereinsverwaltung
 
 - Frappe: `v16.54.0`
 - ERPNext: `v16.53.0`
-- App: `erpverein` `0.5.0`
+- App: `erpverein` `0.6.0`
 - Deployment-Ziel: eigenes ERPNext-Image ueber GitHub Actions/GHCR, danach rootless Podman Quadlet auf `host01`
 
 ## Rename-Reset
@@ -37,7 +37,7 @@ Der aktuelle Stand ist eine patchfreie Vorproduktionsbasis. Bestehende Entwicklu
 
 ## Releases und Images
 
-Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand `erpverein-v16.53.0-0.5.0`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
+Release-Tags folgen `erpverein-v<erpnext-version>-<app-version>`, fuer diesen Stand `erpverein-v16.53.0-0.6.0`. Das Image wird als `ghcr.io/<owner>/erpverein:<tag>` veroeffentlicht.
 
 Der Image-Workflow baut und laedt exakt ein `linux/amd64`-Image. Der Build verwendet `images/custom/Containerfile` aus dem gepinnten `frappe_docker`-Stand mit Python 3.14 und Node.js 24. Dadurch ist kein separat veroeffentlichtes `frappe/build:<frappe-version>`-Image erforderlich.
 
