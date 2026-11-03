@@ -271,22 +271,27 @@ class TestTransferSettlementService(IntegrationTestCase):
         self.assertEqual(invoice.status, "Paid")
 
     def test_historic_invoice_needs_the_invoice_number(self):
+        # ERPNext bills elapsed periods when a subscription starts in the past, so the go-live moves past the invoice.
         customer = make_eur_customer("Transfer Historic")
-        old = make_self_payer_invoice("Transfer Historic", customer=customer, start_date=f"{NEXT_YEAR - 1}-01-01")
+        old = make_self_payer_invoice("Transfer Historic", customer=customer)
         iban = make_german_iban()
         make_bank_account(customer, make_bank(), iban, managed=0)
-        by_iban = import_credits(transfer_row(350, "Beitrag", iban=iban))
+        ensure_export_profile(go_live_date=f"{NEXT_YEAR}-02-01")
+        try:
+            by_iban = import_credits(transfer_row(350, "Beitrag", iban=iban))
+            reconcile(by_iban)
 
-        reconcile(by_iban)
+            suggestion = transactions_for(by_iban)[0]
+            self.assertLess(getdate(old.posting_date), getdate(f"{NEXT_YEAR}-02-01"))
+            self.assertEqual((suggestion.erpverein_match_status, payments_for(suggestion.name)), ("Vorschlag", []))
+            self.assertIn("vor dem Go-live-Stichtag", suggestion.erpverein_match_note)
 
-        suggestion = transactions_for(by_iban)[0]
-        self.assertEqual((suggestion.erpverein_match_status, payments_for(suggestion.name)), ("Vorschlag", []))
-        self.assertIn("vor dem Go-live-Stichtag", suggestion.erpverein_match_note)
-
-        by_number = import_credits(
-            transfer_row(350, f"Altschuld {old.name}", iban=iban, booking_date=f"{NEXT_YEAR}-02-05")
-        )
-        reconcile(by_number)
+            by_number = import_credits(
+                transfer_row(350, f"Altschuld {old.name}", iban=iban, booking_date=f"{NEXT_YEAR}-02-05")
+            )
+            reconcile(by_number)
+        finally:
+            ensure_export_profile(go_live_date=f"{NEXT_YEAR}-01-01")
 
         self.assertEqual(transactions_for(by_number)[0].erpverein_match_status, "Abgeglichen")
         self.assertEqual(references(payments_for(transactions_for(by_number)[0].name)[0].name)[0][0], old.name)
@@ -432,7 +437,7 @@ class TestTransferSettlementService(IntegrationTestCase):
         self.assertEqual(frappe.db.get_value("Payment Entry", payments[0].name, "owner"), treasurer.name)
 
 
-def make_self_payer_invoice(label: str, customer=None, amount: int = 350, start_date: str | None = None):
+def make_self_payer_invoice(label: str, customer=None, amount: int = 350):
     customer = customer or make_eur_customer(label)
     mitglied = make_mitglied(
         customer=customer.name, vorname=label.split()[0], nachname=f"{label.split()[-1]}{token()}", jahresbeitrag=amount
@@ -443,7 +448,7 @@ def make_self_payer_invoice(label: str, customer=None, amount: int = 350, start_
         mitglied.name,
         "Beitragszahler",
         make_plan(amount, "Year").name,
-        start_date or f"{NEXT_YEAR}-01-01",
+        f"{NEXT_YEAR}-01-01",
         "Mitgliedsbeitrag",
     )
     invoice = subscription.create_invoice()
