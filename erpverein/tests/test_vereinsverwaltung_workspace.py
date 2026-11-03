@@ -5,6 +5,7 @@ from frappe.tests import UnitTestCase
 
 
 REPORT_NAME = "Ausgetretene Mitglieder mit aktiven Abonnements"
+WORK_QUEUE_REPORT = "ERPverein Arbeitsvorrat"
 
 
 class TestVereinsverwaltungWorkspace(UnitTestCase):
@@ -36,6 +37,9 @@ class TestVereinsverwaltungWorkspace(UnitTestCase):
 		self.assertEqual(links["Mietabrechnung"]["label"], "Mietabrechnungen")
 		self.assertEqual(links[REPORT_NAME]["link_type"], "Report")
 		self.assertEqual(links[REPORT_NAME]["is_query_report"], 1)
+		self.assertEqual(links[WORK_QUEUE_REPORT]["label"], "Arbeitsvorrat")
+		self.assertEqual(links[WORK_QUEUE_REPORT]["link_type"], "Report")
+		self.assertEqual(links[WORK_QUEUE_REPORT]["is_query_report"], 1)
 		card = next(link for link in workspace["links"] if link["type"] == "Card Break")
 		self.assertEqual(card["link_count"], len([link for link in workspace["links"] if link["type"] == "Link"]))
 
@@ -62,3 +66,5 @@ class TestVereinsverwaltungWorkspace(UnitTestCase):
 		self.assertEqual(links["Beitragsabrechnung"]["label"], "Beitragsabrechnungen")
 		self.assertEqual(links["Mietabrechnung"]["label"], "Mietabrechnungen")
 		self.assertEqual(links[REPORT_NAME]["link_type"], "Report")
+		self.assertEqual(links[WORK_QUEUE_REPORT]["label"], "Arbeitsvorrat")
+		self.assertEqual(links[WORK_QUEUE_REPORT]["link_type"], "Report")

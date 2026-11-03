@@ -1,6 +1,6 @@
 # Anleitung für den Kassenwart
 
-Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug, den Bankimport und den automatischen Abgleich der Sammelgutschrift. Selbstzahler und Rücklastschriften folgen mit den Phasen 5 und 6.
+Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug, den Bankimport, den automatischen Abgleich der Sammelgutschrift, die Überweisungen der Selbstzahler und den Arbeitsvorrat. Rücklastschriften folgen mit Phase 6.
 
 Kennzeichen:
 
@@ -21,6 +21,7 @@ Führe diese Schritte einmal aus. Beginne mit der Test-Site.
 4. Das Migrate legt auch die Listen „SEPA-Einzugsläufe“ und „SEPA-Einzugspositionen“ an.
 5. Das Migrate legt die Liste „Bankimporte“ und die ERPverein-Felder an Bankumsätzen (`Bank Transaction`) an. In „Vereinsverwaltung“ stehen jetzt auch „Bankimporte“ und „Bankumsätze“.
 6. Das Migrate legt die Felder für den Abgleich an: an Zahlungen (`Payment Entry`) „SEPA-Einzugsposition“ und „ERPverein Bankumsatz“, am Bankumsatz „ERPverein Hinweis zum Abgleich“, am Einzugslauf und am Bankimport je einen Abschnitt „Abgleich“.
+7. Das Migrate legt den Bericht „ERPverein Arbeitsvorrat“ an. In „Vereinsverwaltung“ steht er als „Arbeitsvorrat“. Dazu kommen der Status „Erledigt“ an Einzugspositionen und ein verstecktes Feld an Zahlungen, das doppelte Buchungen verhindert.
 
 ### 1.2 E-Mail-Sperre auf der Test-Site
 
@@ -346,7 +347,8 @@ Eine Rechnung mit einer aktiven Einzugsposition lässt sich nicht stornieren. Ih
 
 1. Bankumsätze kommen seit Phase 3 über n8n nach ERPNext (Abschnitt 5).
 2. Seit Phase 4 bucht ERPverein die Zahlungen zur Sammelgutschrift und markiert die Rechnungen als bezahlt (Abschnitt 6).
-3. Rücklastschriften buchst du bis Phase 6 im Banking-Bereich `/banking`.
+3. Seit Phase 5 bucht ERPverein Überweisungen von Selbstzahlern mit sicherem Signal (Abschnitt 7). Alle offenen Fälle zeigt der Arbeitsvorrat (Abschnitt 8).
+4. Rücklastschriften buchst du bis Phase 6 im Banking-Bereich `/banking`.
 
 ---
 
@@ -521,9 +523,9 @@ Der Standardexport von AqBanking enthält nur Datum, Betrag, Konto, Name, IBAN u
 
 ### 5.11 Was noch fehlt
 
-1. Phase 5: ERPverein bucht Überweisungen von Selbstzahlern mit sicherem Signal und zeigt alle offenen Fälle im Arbeitsvorrat.
+1. Erledigt mit Phase 5: Überweisungen von Selbstzahlern (Abschnitt 7) und der Arbeitsvorrat (Abschnitt 8).
 2. Phase 6: ERPverein bucht Rücklastschriften mit Gegenbuchung und Gebühr.
-3. Bis dahin gleichst du diese Bankumsätze im Banking-Bereich `/banking` von Hand ab.
+3. Bis dahin gleichst du Rücklastschriften im Banking-Bereich `/banking` von Hand ab.
 
 ---
 
@@ -569,19 +571,21 @@ ERPverein prüft jeden offenen Bankumsatz mit der Kategorie „Lastschrift-Gutsc
 | Einzugslauf | Bedeutung |
 |---|---|
 | Bankgutschrift erkannt | Die Gutschrift ist zugeordnet. Es fehlen noch Zahlungen oder, bei Einzelbuchung, noch Gutschriften. |
-| Abgestimmt | Jede Position hat eine gebuchte Zahlung. Jeder zugehörige Bankumsatz ist abgeglichen. |
+| Abgestimmt | Jede Position ist bezahlt oder als erledigt markiert (6.8). Jeder zugehörige Bankumsatz ist abgeglichen. |
 | Manuelle Pruefung | ERPverein hat etwas nicht automatisch erledigt. Den Grund nennt das Feld „Hinweis zum Abgleich“. |
 
 | Einzugsposition | Bedeutung |
 |---|---|
 | Bezahlt | Die Zahlung ist gebucht. Das Feld „Zahlung“ zeigt sie. |
 | Manuelle Pruefung | ERPverein hat keine Zahlung gebucht. Den Grund nennt das Feld „Pruefergebnis“. |
+| Erledigt | Du hast den Fall im Banking-Bereich geklärt und die Position als erledigt markiert (6.8). |
 
 | Bankumsatz, Feld „ERPverein Abgleich“ | Bedeutung |
 |---|---|
-| Offen | ERPverein hat den Umsatz noch nicht zugeordnet. |
+| Offen | ERPverein hat den Umsatz noch nicht zugeordnet. Den Grund nennt das Feld „ERPverein Hinweis zum Abgleich“. ERPverein prüft ihn bei jedem Abgleich erneut. |
+| Vorschlag | ERPverein schlägt eine Zuordnung vor (Abschnitt 7.5). Du bestätigst oder verwirfst sie. |
 | Abgeglichen | ERPverein hat den Umsatz vollständig abgeglichen. |
-| Manuelle Pruefung | Den Grund nennt das Feld „ERPverein Hinweis zum Abgleich“. |
+| Manuelle Pruefung | Den Grund nennt das Feld „ERPverein Hinweis zum Abgleich“. ERPverein ändert den Umsatz danach nicht mehr von selbst. |
 
 ### 6.4 Manuelle Prüfung
 
@@ -594,7 +598,7 @@ ERPverein prüft jeden offenen Bankumsatz mit der Kategorie „Lastschrift-Gutsc
 | POSTEN … passt zu keinem Einzugslauf | Prüfe die Anzahl in PayGate. Buche die Zahlungen im Banking-Bereich von Hand. |
 | Die Rechnung … ist inzwischen anders bezahlt | Der Zahler hat zusätzlich überwiesen. Entscheide: erstatten oder als Vorauszahlung behalten. Buche die Zahlung im Banking-Bereich und gleiche sie mit dem Bankumsatz ab. |
 | ERPverein konnte die Zahlung nicht buchen | Behebe den Grund, zum Beispiel ein gesperrtes Geschäftsjahr. Klicke „Abgleich starten“. ERPverein bucht nur die fehlenden Zahlungen. |
-| Die Zahlung … wurde storniert | Kläre den Fall im Banking-Bereich. ERPverein bucht für diese Position keine neue Zahlung. |
+| Die Zahlung … wurde storniert | Kläre den Fall im Banking-Bereich. ERPverein bucht für diese Position keine neue Zahlung. Markiere die Position danach als erledigt (6.8). |
 | Der Betrag … weicht vom Betrag der Position … ab | Einzelbuchung: Prüfe die Gutschrift. Buche die Zahlung im Banking-Bereich von Hand. |
 | Die End-to-End-Referenz gehoert zur Position … | Die Bank hat eine Position gutgeschrieben, die schon bezahlt oder storniert ist. Kläre den Fall mit der Bank. |
 | Der Benutzer … hat nicht alle Rechte fuer den Abgleich | Gib dem Benutzer des API-Schlüssels die Rollen des Kassenwarts oder nutze den Schlüssel des Kassenwarts (5.3). Klicke dann „Abgleich starten“. |
@@ -614,6 +618,8 @@ ERPverein prüft jeden offenen Bankumsatz mit der Kategorie „Lastschrift-Gutsc
 
 **HINWEIS:** Löst du im Banking-Bereich den Abgleich eines Bankumsatzes, bleiben die Zahlungen gebucht. Verknüpfe sie dort wieder.
 
+**HINWEIS:** Eine Position in „Manuelle Pruefung“ hält den Einzugslauf in „Manuelle Pruefung“. Kläre den Fall und markiere die Position als erledigt (6.8).
+
 ### 6.7 Test auf der Test-Site
 
 Auf der Test-Site kommt keine echte Sammelgutschrift, denn du lädst dort keine Datei bei der Bank hoch. Teste mit einer synthetischen Gutschrift.
@@ -626,3 +632,149 @@ Auf der Test-Site kommt keine echte Sammelgutschrift, denn du lädst dort keine 
 6. Wiederhole den Test mit einem anderen Lauf und einem um 1,00 EUR kleineren Betrag. Prüfe: keine Zahlung, Lauf und Bankumsatz auf „Manuelle Pruefung“ mit Grund.
 
 **VORSICHT:** Die Test-Site enthält danach gebuchte Testzahlungen. Setze sie vor dem Go-live neu auf (E21).
+
+### 6.8 Position als erledigt markieren
+
+Nutze diese Aktion nur für eine Position in „Manuelle Pruefung“, deren Fall du im Banking-Bereich geklärt hast. Beispiele: Du hast die Zahlung von Hand gebucht, die Rechnung war schon anders bezahlt, oder du hast das Geld zurücküberwiesen.
+
+1. Kläre den Fall im Banking-Bereich `/banking`. Gleiche den Bankumsatz dort vollständig ab.
+2. Öffne die Einzugsposition.
+3. Klicke „Als erledigt markieren“.
+4. Schreibe in einem Satz, was du getan hast.
+5. ERPverein setzt die Position auf „Erledigt“. Das Feld „Erledigt-Vermerk“ bekommt Benutzer, Datum, deinen Text und das bisherige Prüfergebnis. Das Feld „Pruefergebnis“ ist danach leer. ERPverein kommentiert Position und Lauf.
+6. Sind alle Positionen bezahlt oder erledigt und ist jeder Bankumsatz abgeglichen, geht der Lauf auf „Abgestimmt“.
+
+**VORSICHT:** ERPverein bucht für eine erledigte Position nichts mehr. Die Zahlungsplanzeile bleibt für einen neuen Einzug gesperrt. Fehlt das Geld noch, kläre den Fall vorher (Rücklastschriften: Phase 6).
+
+---
+
+## 7. Überweisungen von Selbstzahlern
+
+### 7.1 Überblick
+
+Selbstzahler überweisen. Die Rechnung nennt dafür die Rechnungsnummer als Verwendungszweck. Nach jedem Bankimport prüft ERPverein jede eingehende Überweisung, die nicht zu einer Lastschrift gehört.
+
+```text
+Bankimport → Abgleich im Hintergrund → Sammelgutschriften (Abschnitt 6) → Überweisungen
+→ sicheres Signal: Zahlung buchen und mit dem Bankumsatz abgleichen
+→ nur schwache Signale: Vorschlag; Konflikt: Manuelle Pruefung; kein Signal: Offen
+```
+
+1. Der Bankimport zeigt das Ergebnis im Abschnitt „Abgleich“, zum Beispiel „1 Ueberweisungen zugeordnet, 2 Vorschlaege warten auf Bestaetigung“.
+2. Die Zahlung hat das Buchungsdatum des Bankumsatzes, die Zahlungsweise „Überweisung“ und als Referenznummer die Referenz der Bank oder den Namen des Bankumsatzes.
+3. Partei der Zahlung ist immer der Kunde der Rechnung. Das gilt auch, wenn eine dritte Person zahlt, zum Beispiel die Eltern für ein Kind.
+4. ERPverein bucht für einen Bankumsatz und einen Kunden nie eine zweite Zahlung. Ein verstecktes Feld an der Zahlung sichert das ab.
+
+### 7.2 Sichere Signale
+
+ERPverein bucht nur mit einem sicheren Signal. Die Signale gelten in dieser Reihenfolge:
+
+| Nr. | Signal | Bedingung |
+|---|---|---|
+| 1 | Rechnungsnummer im Verwendungszweck (`ACC-SINV-JJJJ-NNNNN`) | Genau eine offene Rechnung ist genannt. Der Betrag darf kleiner sein (Teilzahlung) oder größer (Überzahlung). |
+| 1a | Mehrere Rechnungsnummern | Alle Rechnungen gehören zu einem Kunden. Der Betrag ist mindestens ihre Summe. ERPverein bucht eine Zahlung auf alle Rechnungen. |
+| 2 | Mitglieds- oder Mieter-ID im Verwendungszweck (`MIT-JJJJ-NNNNN`, `MIE-JJJJ-NNNNN`) | Der Betrag ist gleich dem offenen Betrag genau einer Rechnung dieses Zahlers. Mitgliedsbeitrag und Miete zählen getrennt. |
+| 3 | Bekannte IBAN der Gegenseite | Ein Bankkonto mit dieser IBAN gehört genau einem Kunden. Der Betrag ist gleich dem offenen Betrag genau einer Rechnung dieses Kunden. Passt der Betrag zu einem Mitgliedsbeitrag und zu einer Miete, ist das mehrdeutig. |
+
+1. Eine Rechnungsnummer geht vor ID und IBAN.
+2. Rechnungsnummer und ID zählen nur vollständig. Eine gekürzte Nummer wie „SINV-2027-12“ ist kein Signal.
+3. Eine ID ohne Mitglied oder Mieter zählt nicht. ERPverein prüft dann die IBAN.
+4. Name und Betrag allein lösen nie eine Buchung aus. ERPverein macht dann einen Vorschlag (7.5).
+5. Rechnungen vor dem Go-live-Stichtag (Historie) bucht ERPverein nur mit Rechnungsnummer. Mit ID oder IBAN entsteht ein Vorschlag.
+6. Ist die Gutschrift älter als die Rechnung, bucht ERPverein über ID oder IBAN nicht automatisch. Es entsteht ein Vorschlag. Beispiel: Eine doppelte Zahlung aus dem Vorjahr bezahlt nicht still die neue Rechnung.
+7. Nennt der Zahler die Nummer einer stornierten Rechnung, die du berichtigt hast (Name mit „-1“), bucht ERPverein auf die Berichtigung.
+
+### 7.3 Teilzahlung, Überzahlung, mehrere Rechnungen
+
+1. **Teilzahlung:** ERPverein bucht den Betrag als Teilbetrag. Zuerst bezahlt er die Zeilen mit Zahlungsweise „Überweisung“, dann die Lastschriftzeilen, jeweils die älteste Fälligkeit zuerst. Die Rechnung steht danach auf „Partly Paid“.
+2. Würde eine Teilzahlung eine Lastschriftzeile nur zum Teil bezahlen, bucht ERPverein nichts. Grund: Der angekündigte Einzugsbetrag stimmte dann nicht mehr. Der Bankumsatz geht auf „Manuelle Pruefung“.
+3. **Überzahlung:** ERPverein bezahlt die Rechnung voll. Der Rest bleibt am Bankumsatz offen. Der Bankumsatz geht auf „Manuelle Pruefung“ und nennt den Rest. Buche den Rest im Banking-Bereich: als Vorauszahlung, als Spende oder als Rückzahlung.
+4. **Mehrere Rechnungen eines Kunden:** Nennt der Verwendungszweck alle Nummern, bucht ERPverein eine Zahlung mit einer Referenz je Zahlungsplanzeile.
+5. **Mehrere Kunden:** Nennt der Verwendungszweck Rechnungen verschiedener Kunden und passt die Summe, macht ERPverein einen Vorschlag. Beim Bestätigen entsteht je Kunde eine Zahlung.
+
+### 7.4 Eingezogene Rechnungen
+
+**VORSICHT:** Steht die Rechnung in einer aktiven Einzugsposition (Entwurf, Geprüft, Exportiert oder Manuelle Prüfung), bucht ERPverein die Überweisung nie. Sonst droht ein doppelter Einzug. Der Bankumsatz geht auf „Manuelle Pruefung“ und nennt die Position.
+
+1. Prüfe, ob die Bank die Lastschrift schon ausgeführt hat.
+2. Ist der Lauf noch nicht bei der Bank: Storniere die Position (3.8). Buche die Überweisung danach im Banking-Bereich.
+3. Ist die Lastschrift schon ausgeführt: Zahle die Überweisung zurück.
+
+### 7.5 Vorschläge bestätigen oder verwerfen
+
+Ein Vorschlag nennt Kunde, Rechnungen, Teilbeträge, Signale und Konflikte.
+
+1. Öffne den Bankumsatz, zum Beispiel aus dem Arbeitsvorrat (Abschnitt 8).
+2. Lies den Hinweis oben im Formular.
+3. Klicke „ERPverein“ → „Vorschlag bestätigen“. ERPverein zeigt Kunde, Rechnung, Zahlungsbedingung und Betrag.
+4. Klicke „Zahlung buchen“. ERPverein prüft den Vorschlag erneut, bucht die Zahlung und gleicht sie ab. Der Hinweis nennt dich als Bestätigenden.
+5. Passt der Vorschlag nicht: Klicke „ERPverein“ → „Vorschlag verwerfen“ und nenne den Grund. Der Bankumsatz geht auf „Manuelle Pruefung“. ERPverein schlägt ihn nicht erneut vor.
+
+**HINWEIS:** ERPverein prüft Vorschläge bei jedem Abgleich neu. Ist die Rechnung inzwischen anders bezahlt, geht der Bankumsatz auf „Offen“ mit Grund. Hat sich der Vorschlag geändert, meldet „Zahlung buchen“ das. Lade dann das Formular neu.
+
+### 7.6 Gründe und was du tust
+
+| Grund (Anfang) | Status | Was du tust |
+|---|---|---|
+| Der Verwendungszweck nennt keine offene Rechnung | Manuelle Pruefung | Die Rechnung ist bezahlt, storniert oder unbekannt. Prüfe auf doppelte Zahlung. Zahle zurück oder buche als Vorauszahlung. |
+| Die Rechnung … hat die aktive Einzugsposition … | Manuelle Pruefung | Siehe 7.4. |
+| Die Zahlung wuerde eine Lastschriftzeile nur teilweise bezahlen | Manuelle Pruefung | Buche die Teilzahlung im Banking-Bereich. Prüfe danach den Zahlungsplan der Rechnung. |
+| Ueberzahlung: … bleibt am Bankumsatz offen | Manuelle Pruefung | Siehe 7.3, Punkt 3. |
+| Der Betrag passt zu mehreren offenen Rechnungen | Manuelle Pruefung | Frage den Zahler oder ordne im Banking-Bereich zu. |
+| Der Verwendungszweck nennt mehrere IDs | Manuelle Pruefung | Ordne im Banking-Bereich zu. |
+| Vorschlag: … | Vorschlag | Siehe 7.5. |
+| … hat keine offene Rechnung / Der Betrag passt zu keiner offenen Rechnung | Offen | Fehlt die Rechnung noch, lege sie an. ERPverein prüft beim nächsten Abgleich erneut. Sonst ordne im Banking-Bereich zu. |
+| Kein Signal | Offen | Ordne im Banking-Bereich zu. Für feste Vorgänge lege eine `Bank Transaction Rule` an. |
+| Automatische Zuordnung fehlgeschlagen | Offen oder Vorschlag | Behebe den Grund, zum Beispiel ein fehlendes Geschäftsjahr. Klicke im Bankimport „Abgleich starten“. |
+| Die Zahlung … wurde storniert | Manuelle Pruefung | ERPverein bucht diesen Bankumsatz nicht erneut. Kläre ihn im Banking-Bereich. |
+
+### 7.7 Was du nicht tust
+
+**VORSICHT:** Storniere keine Zahlung, die ERPverein zu einer Überweisung gebucht hat. Der Bankumsatz geht dann auf „Manuelle Pruefung“. ERPverein bucht ihn nicht erneut.
+
+1. Lege `Bank Transaction Rules` nur für Gebühren und feste Vorgänge an, nicht für Beiträge oder Mieten. Eine Regel, die zu einem Bankumsatz passt, macht aus einer Buchung einen Vorschlag.
+2. Schalte `Auto reconcile Payments` nicht ein (1.7). Es verteilt Zahlungen bei einem gemeinsamen Kunden über Mitgliedsbeitrag und Miete.
+
+### 7.8 Test auf der Test-Site
+
+1. Setze den Go-live-Stichtag der Test-Site in die Vergangenheit (5.9).
+2. Buche eine Rechnung für einen Selbstzahler. Notiere die Rechnungsnummer und den Betrag.
+3. Erzeuge mit dem Testwerkzeug aus dem Phasenbericht eine synthetische Überweisung mit der Rechnungsnummer im Verwendungszweck. Sende sie an ERPverein.
+4. Prüfe: Zahlung gebucht, Rechnung „Paid“, Bankumsatz „Reconciled“ und „Abgeglichen“.
+5. Wiederhole mit einer zweiten Rechnung. Nimm als Verwendungszweck nur „Mitgliedsbeitrag“ und als Name den Kundennamen. Prüfe: Bankumsatz „Vorschlag“, keine Zahlung. Bestätige den Vorschlag (7.5).
+
+**VORSICHT:** Die Test-Site enthält danach gebuchte Testzahlungen. Setze sie vor dem Go-live neu auf (E21).
+
+---
+
+## 8. Arbeitsvorrat
+
+### 8.1 Überblick
+
+Der Arbeitsvorrat zeigt jeden offenen Fall an einer Stelle: mit Bereich, Datum, Link, Betrag, Kunde, Status, Grund und nächster Aktion. Öffne ihn über „Vereinsverwaltung“ → „Arbeitsvorrat“.
+
+1. Der Bericht braucht die Rolle `Accounts User` oder `Accounts Manager`.
+2. Einzugsläufe und Einzugspositionen erscheinen nur mit der Rolle `System Manager`. Fehlt sie, nennt der Bericht die ausgeblendeten Bereiche.
+3. IBANs erscheinen nur maskiert (`**** 1234`).
+4. Ein Fall verschwindet, sobald er erledigt ist. Du musst nichts abhaken.
+
+### 8.2 Bereiche
+
+| Bereich | Wann ein Fall entsteht | Nächste Aktion |
+|---|---|---|
+| Bankumsatz | Der Bankumsatz ist nicht vollständig abgeglichen: „Offen“, „Vorschlag“, „Manuelle Pruefung“ oder ein aufgehobener Abgleich | Vorschlag bestätigen (7.5) oder im Banking-Bereich zuordnen. Gebühren: `Bank Transaction Rule` anlegen. |
+| Einzugslauf | Der Lauf steht auf „Manuelle Pruefung“, oder die Sammelgutschrift fehlt nach Einzugsdatum plus Toleranz | Lauf öffnen. Bei fehlender Gutschrift Umsätze abrufen oder bei der Bank nachfragen. |
+| Einzugsposition | Die Position steht auf „Manuelle Pruefung“ | Im Banking-Bereich klären, dann „Als erledigt markieren“ (6.8). |
+| Bankimport | Status „Teilfehler“ oder „Fehler“, oder der Abgleich ist fehlgeschlagen | Grund beheben, dann „Erneut verarbeiten“ oder „Abgleich starten“. |
+| Zahlungsplan | Die Rechnung hat einen Hinweis zum Zahlungsplan, zum Beispiel „Mandatssumme größer als Rechnungsbetrag“ | Mandat korrigieren, dann „Zahlungsplan aus Mandat neu erzeugen“, oder „Zahlungsplan bearbeiten“ (Abschnitt 2). |
+| Vorabankündigung | Eine Lastschriftzeile ohne Einzugsposition ist in den nächsten Tagen fällig (Filter „Vorabankündigung: Tage voraus“, Standard 45). Die Vorabankündigung fehlt oder kommt zu spät. | Rechnung bis zum genannten Tag per E-Mail senden oder die Vorabankündigung manuell bestätigen (2.5). |
+
+### 8.3 Täglicher Ablauf
+
+1. Öffne nach jedem Abruf den Arbeitsvorrat.
+2. Arbeite zuerst „Bankimport“ und „Vorabankündigung“ ab. Sie haben Fristen.
+3. Bestätige oder verwirf die Vorschläge.
+4. Kläre die übrigen Bankumsätze im Banking-Bereich. Der Knopf „Banking-Bereich öffnen“ steht oben im Bericht.
+5. Markiere geklärte Einzugspositionen als erledigt.
+
+**HINWEIS:** Mit dem Filter „Bereich“ zeigst du nur einen Bereich, zum Beispiel nur Vorschläge im Bereich „Bankumsatz“.

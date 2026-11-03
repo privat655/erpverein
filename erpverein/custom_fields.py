@@ -46,6 +46,7 @@ BANK_TRANSACTION_MATCH_NOTE_FIELDNAME = "erpverein_match_note"
 BANK_MATCH_STATUS_OPTIONS = ("Offen", "Abgeglichen", "Vorschlag", "Manuelle Pruefung")
 PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME = "erpverein_sepa_collection_item"
 PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME = "erpverein_bank_transaction"
+PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME = "erpverein_transfer_key"
 
 
 def get_custom_fields() -> dict:
@@ -455,6 +456,17 @@ def get_custom_fields() -> dict:
                 "no_copy": 1,
                 "read_only": 1,
             },
+            {
+                "fieldname": PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
+                "label": "ERPverein Ueberweisungsschluessel",
+                "fieldtype": "Data",
+                "insert_after": PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
+                "description": "Bankumsatz und Kunde einer Ueberweisung, die ERPverein zugeordnet hat.",
+                "hidden": 1,
+                "no_copy": 1,
+                "read_only": 1,
+                "unique": 1,
+            },
         ],
     }
 
@@ -512,6 +524,10 @@ def remove_custom_fields() -> None:
                 BANK_TRANSACTION_SOURCE_ROW_FIELDNAME,
                 BANK_TRANSACTION_FINGERPRINT_FIELDNAME,
             ],
-            "Payment Entry": [PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME, PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME],
+            "Payment Entry": [
+                PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
+                PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
+                PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
+            ],
         }
     )

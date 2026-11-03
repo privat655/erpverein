@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.5 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34); Abgleich der Sammelgutschrift nach Umsetzung präzisiert (Kapitel 35)  
+**Version:** 0.6 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34); Abgleich der Sammelgutschrift nach Umsetzung präzisiert (Kapitel 35); Selbstzahler und Arbeitsvorrat nach Umsetzung präzisiert (Kapitel 36)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -424,16 +424,15 @@ Vorhanden sind:
 - tägliche Aktualisierung der SEPA-Einzugsplanprojektionen,
 - stündliche Bereinigung beziehungsweise Abstimmung veralteter Abrechnungsjobs.
 
-Dazu kommt seit Phase 4 ein Hintergrundjob nach jedem Bankimport: der Abgleich der Sammelgutschrift (Kapitel 35).
+Dazu kommt seit Phase 4 ein Hintergrundjob nach jedem Bankimport: der Abgleich der Sammelgutschrift (Kapitel 35). Seit Phase 5 ordnet derselbe Job danach Überweisungen von Selbstzahlern zu (Kapitel 36).
 
 ### 6.9 Noch nicht implementiert
 
-Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34) und der automatische Abgleich der Sammelgutschrift mit einer Zahlung je Einzugsposition (Phase 4, Kapitel 35).
+Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34), der automatische Abgleich der Sammelgutschrift mit einer Zahlung je Einzugsposition (Phase 4, Kapitel 35) und die Zuordnung von Überweisungen der Selbstzahler mit Vorschlägen und Arbeitsvorrat (Phase 5, Kapitel 36).
 
 Noch nicht vorhanden sind:
 
 - eingebettete Subscription-, Rechnungs- und Zahlungsansichten in Mitglied und Mieter,
-- Selbstüberweiser-Matching,
 - Reject- und Rücklastschriftprozess,
 - historische Übernahme ab 2016.
 
@@ -861,6 +860,8 @@ stateDiagram-v2
 Umsetzung Phase 2: Die Position kennt die Status `Entwurf`, `Geprueft`, `Exportiert` und `Storniert`. Eine Position ist aktiv, solange sie nicht storniert ist (später auch nicht abgelehnt oder zurückbelastet).
 
 Umsetzung Phase 4: Dazu kommen `Bezahlt` (Zahlung gebucht) und `Manuelle Pruefung` (keine Zahlung, Grund in `processing_error`). `Bankbestaetigt` entfällt, weil ERPverein Zuordnung und Zahlung in einem Schritt erledigt. Eine bezahlte Position bleibt aktiv.
+
+Umsetzung Phase 5: Dazu kommt `Erledigt`. Der Kassenwart setzt ihn für eine Position in `Manuelle Pruefung`, nachdem er den Fall im Banking-Bereich geklärt hat (Kapitel 36.6). Eine erledigte Position bleibt aktiv; ihre Zahlungsplanzeile bleibt für neue Einzüge gesperrt.
 
 ### 11.5 Betragsregeln
 
@@ -1485,6 +1486,8 @@ Priorität:
 
 Name und Betrag allein dürfen keine automatische Buchung auslösen.
 
+> **Umsetzung (Phase 5):** Sichere Signale sind (1) genau eine offene Rechnungsnummer im Verwendungszweck, (2) eine eindeutige Mitglieds- oder Mieter-ID mit einem Betrag gleich dem offenen Betrag genau einer Rechnung dieses Zahlers und (3) eine bekannte IBAN mit genau einem Customer und einem Betrag gleich dem offenen Betrag genau einer Rechnung dieses Customers. Rechnungsnummer und ID zählen nur vollständig. Signal 3 ersetzt die Customer-Referenz aus Punkt 2. Name und Betrag ergeben nur einen Vorschlag (Kapitel 36.2).
+
 ### 16.3 Party-Erkennung
 
 - Bekannte Partner-IBANs werden über ERPNext `Bank Account` und dessen Party-Bezug ermittelt.
@@ -1510,9 +1513,13 @@ Da eine Payment Entry nur eine Party besitzt, werden mehrere Payment Entries erz
 
 Dies entspricht dem Muster der Sammellastschrift.
 
+> **Umsetzung (Phase 5, Entscheidung des Benutzers vom 02.11.2026):** Mehrere Rechnungsnummern eines Customers mit einem Betrag von mindestens ihrer Summe bucht ERPverein automatisch (eine Zahlung). Rechnungen verschiedener Customers mit genau ihrer Summe ergeben nur einen Vorschlag; beim Bestätigen entsteht je Customer eine Zahlung (Kapitel 36.3).
+
 ### 16.6 Teilzahlung
 
 Eine Zahlung unterhalb des Rechnungsrests wird als Teilbetrag allokiert.
+
+> **Umsetzung (Phase 5):** Zuerst die Zeilen mit Zahlungsweise „Überweisung“, dann die Lastschriftzeilen, jeweils die älteste Fälligkeit zuerst. Bliebe eine Lastschriftzeile teilweise offen, bucht ERPverein nicht automatisch (Kapitel 36.3).
 
 ### 16.7 Überzahlung
 
@@ -1522,11 +1529,15 @@ Wenn der Betrag den ausgewählten Rechnungsrest übersteigt:
 - keine automatische Abschreibung,
 - klare Anzeige zur manuellen Prüfung.
 
+> **Umsetzung (Phase 5, Entscheidung des Benutzers vom 02.11.2026):** ERPverein bezahlt die genannte Rechnung voll. Der Rest bleibt am Bankumsatz offen; der Bankumsatz geht auf `Manuelle Pruefung` und nennt den Rest. Der Kassenwart bucht ihn im Banking-Bereich (Vorauszahlung, Spende oder Rückzahlung).
+
 ### 16.8 Unbekannte Zahlung
 
 Nicht eindeutig zuordenbare Bank Transactions bleiben `Unreconciled` beziehungsweise `Manual Review`.
 
 Das System zeigt Vorschläge mit Begründung und Konfidenz, bucht aber nicht automatisch.
+
+> **Umsetzung (Phase 5):** Ohne Signal bleibt der Bankumsatz `Offen` mit Grund; ERPverein prüft ihn bei jedem Abgleich erneut. Mehrdeutige oder blockierte Fälle gehen auf `Manuelle Pruefung` und bleiben dort (Kapitel 36.4). Statt einer Konfidenz nennt der Vorschlag die Signale.
 
 ### 16.9 Zuordnungsvorschlag
 
@@ -1538,6 +1549,8 @@ Ein Vorschlag enthält:
 - verwendete Matching-Signale,
 - Konflikte,
 - erforderliche Benutzerbestätigung.
+
+> **Umsetzung (Phase 5):** Der Vorschlag steht im Hinweis des Bankumsatzes. „Vorschlag bestätigen“ berechnet ihn neu, bucht nur bei unverändertem Inhalt (Hash) und gleicht ab; „Vorschlag verwerfen“ setzt `Manuelle Pruefung` mit Grund (Kapitel 36.5).
 
 ### 16.10 Tasks
 
@@ -2035,6 +2048,7 @@ Idempotenzanker:
 | Einzugsposition | Generierungsschlüssel |
 | Export | Exportdatei-Hash |
 | Lastschriftzahlung | eindeutiger Positionslink auf Payment Entry |
+| Überweisungszahlung | eindeutiger Schlüssel aus Bankumsatz und Customer auf Payment Entry (`erpverein_transfer_key`, Kapitel 36.6) |
 | Rücklastschrift | eindeutiger Positions- und Bank-Transaction-Link auf Journal Entry |
 | historische Rechnung | Migrationsfingerprint |
 
@@ -2063,6 +2077,8 @@ Ein zentraler Arbeitsvorrat zeigt:
 - fehlende oder verspätete Vorabankündigungen.
 
 Jeder Eintrag zeigt den Grund und mögliche nächste Aktionen.
+
+> **Umsetzung (Phase 5):** Script Report „ERPverein Arbeitsvorrat“ mit den Bereichen Bankumsatz, Einzugslauf, Einzugsposition, Bankimport, Zahlungsplan und Vorabankündigung (Kapitel 36.7). Unklare Rücklastschriften erscheinen als offene Bankumsätze, bis Phase 6 sie zuordnet.
 
 ---
 
@@ -2291,6 +2307,8 @@ Status: umgesetzt am 02.11.2026 (Kapitel 35); Prüfung der Klassifikation mit ei
 - Tests T10 und T11.
 
 ### Phase 5 – Selbstzahler (vor dem Release)
+
+Status: umgesetzt am 02.11.2026 (Kapitel 36); Prüfung der Klassifikation mit einem echten Abruf weiter offen.
 
 - sichere Signale und Vorschläge,
 - Arbeitsvorrat,
@@ -2574,6 +2592,10 @@ Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Di
 | E28 | Die Historie bekommt Soll-Rechnungen. Quelle ist das Rechnungsbuch aus Vereinsmeister. |
 | E29 | Die Miete ist zum 1. des Monats fällig (O6, 02.11.2026). |
 | E30 | Mieter bekommen keine Vorabankündigung (O6, 02.11.2026). Für Mieten gilt `rent_prenotification_required = 0`. |
+| E31 | Überzahlung: ERPverein bezahlt die Rechnung voll; der Rest bleibt am Bankumsatz offen, Status `Manuelle Pruefung` (Phase 5, 02.11.2026). |
+| E32 | Rechnungen vor dem Go-live-Stichtag bucht ERPverein nur mit Rechnungsnummer; mit ID oder IBAN entsteht ein Vorschlag (Phase 5, 02.11.2026, O18). |
+| E33 | Mehrere Rechnungsnummern: ein Customer wird automatisch gebucht, mehrere Customers nur als Vorschlag (Phase 5, 02.11.2026). |
+| E34 | Der Arbeitsvorrat ist ein Script Report; Aktionen „Vorschlag bestätigen“, „Vorschlag verwerfen“ und „Als erledigt markieren“ stehen in den Formularen (Phase 5, 02.11.2026). |
 
 ### 32.2 Prüfergebnisse (Kurzfassung)
 
@@ -2797,5 +2819,121 @@ Die `PmtInfId` ist der Laufname (20 Zeichen). Eine MT940-Kundenreferenz fasst nu
 ### 35.8 Offene Punkte
 
 1. Ein echter Abruf mit der Vorlage `v3` fehlt. Danach werden Kategorie, Text und Füllgrad der HVB-Sammelgutschrift geprüft (Kapitel 34.8).
-2. Eine Position in `Manuelle Pruefung` lässt sich nicht als erledigt markieren. Löst der Kassenwart den Fall im Banking-Bereich, bleibt der Lauf in `Manuelle Pruefung`.
+2. Erledigt mit Phase 5: Eine Position in `Manuelle Pruefung` lässt sich nach der Klärung im Banking-Bereich als erledigt markieren (Kapitel 36.6).
 3. Rejects vor der Gutschrift (Bankbetrag kleiner als die Laufsumme) und Rücklastschriften kommen mit Phase 6.
+
+---
+
+## 36. Selbstzahler und Arbeitsvorrat (Umsetzung Phase 5)
+
+### 36.1 Ablauf
+
+1. Der Abgleich-Job (Kapitel 35.1) prüft nach dem Lastschrift-Abgleich jede gebuchte Gutschrift des Vereinskontos mit `erpverein_match_status` `Offen` oder `Vorschlag`, ohne zugeordneten Betrag und ohne Bezug zu einer Einzugsposition.
+2. Gutschriften der Kategorien `Lastschrift-Gutschrift` und `Manuelle Pruefung` sowie Gutschriften mit einem Laufnamen im Text gehören zum Lastschrift-Abgleich. Der Schritt lässt sie aus.
+3. Jeder Bankumsatz läuft in einem eigenen Savepoint. Bei einem Fehler behält der Bankumsatz seinen Status; der Hinweis nennt den Grund. Der nächste Abgleich versucht es erneut. Deadlocks und Lock-Timeouts gibt der Job an Frappe zurück.
+4. Vor einer Buchung sperrt ERPverein den Bankumsatz und die Rechnungen (`for_update`), liest sie neu und entscheidet erneut.
+5. Der Job läuft mit dem Benutzer des API-Schlüssels (Kapitel 20.6). Zusätzlich zu Kapitel 35.1 braucht er Leserecht auf `Customer`, `Bank Account`, `Mitglied` und `Mieter`.
+6. Die Regeln liegen ohne Frappe in `erpverein/services/transfer_settlement_matcher.py` und haben eigene Unit-Tests. Datenzugriff, Buchung und Abgleich liegen in `erpverein/services/transfer_settlement_service.py`.
+
+### 36.2 Signale
+
+| Nr. | Signal | Regel | Ergebnis |
+|---|---|---|---|
+| 1 | Rechnungsnummer im Verwendungszweck | Genau eine offene Rechnung des Unternehmens in der Währung des Kontos | Buchen; Teil- und Überzahlung nach 36.3 |
+| 1a | Mehrere Rechnungsnummern | Ein Customer, Betrag mindestens die Summe | Buchen (eine Zahlung); Betrag kleiner: Vorschlag (älteste zuerst) |
+| 1b | Mehrere Rechnungsnummern | Mehrere Customers, Betrag gleich der Summe | Vorschlag (je Customer eine Zahlung); sonst `Manuelle Pruefung` |
+| 2 | Mitglieds- oder Mieter-ID im Verwendungszweck | Genau eine ID mit Customer; Betrag gleich dem offenen Betrag genau einer Rechnung dieses Customers mit der Abrechnungsart der ID (Mitgliedsbeitrag oder Miete) | Buchen |
+| 3 | IBAN der Gegenseite | Bankkonten mit dieser IBAN gehören genau einem Customer; Betrag gleich dem offenen Betrag genau einer Rechnung dieses Customers | Buchen |
+| 4 | Name der Gegenseite | Gleiche Wörter wie der Kundenname (ohne Reihenfolge, Titel und Initialen); Betrag gleich dem offenen Betrag genau einer Rechnung | Vorschlag |
+
+1. Rechnungsnummer vor ID, ID vor IBAN, IBAN vor Name (Kapitel 16.3).
+2. Nur vollständige Nummern zählen: `ACC-SINV-JJJJ-NNNNN`, `MIT-JJJJ-NNNNN`, `MIE-JJJJ-NNNNN`; Trennzeichen dürfen fehlen oder andere sein. Eine umbrochene oder gekürzte Nummer könnte eine andere Rechnung nennen.
+3. Eine ID ohne Mitglied oder Mieter mit Customer zählt nicht. „mit 2027 12345“ in einem Text blockiert deshalb nichts.
+4. Mitgliedsbeitrag und Miete eines gemeinsamen Customers zählen getrennt. Passt der Betrag zu beiden, ist der Fall mehrdeutig (`Manuelle Pruefung`). Summen bildet ERPverein nur innerhalb einer Abrechnungsart.
+5. Ohne genauen Treffer gilt bei ID und IBAN: Summe aller offenen Rechnungen einer Abrechnungsart ergibt einen Vorschlag; eine einzige offene Rechnung mit größerem Betrag ergibt einen Vorschlag als Teilzahlung; sonst bleibt der Bankumsatz `Offen`.
+6. Rechnungen vor dem Go-live-Stichtag (Rechnungsdatum) bucht ERPverein nur über die Rechnungsnummer; mit ID oder IBAN entsteht ein Vorschlag (E32).
+7. Ist die Gutschrift älter als das Anlagedatum der Rechnung, bucht ERPverein über ID oder IBAN nicht automatisch; es entsteht ein Vorschlag. Geld von vor der Rechnung ist eine Vorauszahlung, eine zweite Zahlung oder eine Spende; ein Mensch entscheidet.
+8. Eine stornierte Rechnung mit Berichtigung (`amended_from`, Name `<Nummer>-1`) leitet die Rechnungsnummer auf die jüngste nicht stornierte Berichtigung weiter. Der Hinweis nennt das.
+9. Hat ERPNext schon eine `Bank Transaction Rule` zugeordnet, wird aus einer Buchung ein Vorschlag.
+
+### 36.3 Zuordnung und Zahlung
+
+1. **Reihenfolge der Zeilen:** zuerst Zeilen mit Zahlungsweise „Überweisung“, dann Lastschriftzeilen, jeweils die älteste Fälligkeit zuerst. Grund: Die Rechnung nennt die Überweisungszeilen als Betrag für die Überweisung; Lastschriftzeilen sind angekündigt und für den Einzug vorgesehen. Die älteste Fälligkeit zuerst entspricht dem ERPNext-Mahnwesen (Kapitel 31.5).
+2. Der offene Betrag einer Zeile ist der vorsichtige Wert aus Kapitel 31.5: Zahlungen ohne Zahlungsbedingung mindern zuerst die älteste Zeile.
+3. Bliebe eine Lastschriftzeile teilweise offen, bucht ERPverein nicht (`Manuelle Pruefung`). Der angekündigte Einzugsbetrag stimmte sonst nicht mehr. Eine ganz bezahlte Lastschriftzeile zieht ERPverein nicht mehr ein, weil ihr offener Betrag 0 ist.
+4. **Überzahlung (E31):** ERPverein bezahlt die Rechnungen voll; der Rest bleibt am Bankumsatz offen; Status `Manuelle Pruefung` mit dem Rest im Hinweis.
+5. **Aktive Einzugsposition:** Hat eine betroffene Rechnung eine Position, die weder `Bezahlt` noch `Erledigt` ist (Entwurf, Geprüft, Exportiert, Manuelle Prüfung), bucht ERPverein nicht. Der Hinweis nennt die Position. Sonst droht ein doppelter Einzug.
+6. **Zahlung:** je Customer eine `Payment Entry` aus `get_payment_entry`; Partei ist der Customer der Rechnung, auch wenn eine dritte Person zahlt (der Hinweis nennt das). Buchungsdatum und `reference_date` = Buchungsdatum des Bankumsatzes; `bank_account` = Vereinskonto; Zahlungsweise „Überweisung“; `reference_no` = Referenz der Bank, sonst Bank-ID, sonst Name des Bankumsatzes; je Zahlungsplanzeile eine Referenz mit ihrer Zahlungsbedingung. Hat eine Rechnung Zeilen ohne Zahlungsbedingung, bucht ERPverein wie ERPNext eine Referenz je Rechnung ohne Zahlungsbedingung.
+7. **Abgleich:** `reconcile_vouchers` mit genau diesen Zahlungen (Abgleichsart „Matched“). Nie `auto_reconcile_vouchers`; `Accounts Settings.auto_reconcile_payments` bleibt aus (Kapitel 31.7).
+
+### 36.4 Status am Bankumsatz
+
+| Status | Wann | Danach |
+|---|---|---|
+| `Offen` | Kein Signal, oder ein Signal nennt einen Zahler, zu dem noch keine Rechnung passt | ERPverein prüft bei jedem Abgleich erneut. Entsteht die Rechnung später, wird daraus ein Vorschlag (36.2, Punkt 7) |
+| `Vorschlag` | Ein Vorschlag nach 36.2 | ERPverein prüft bei jedem Abgleich erneut; Bestätigen oder Verwerfen nach 36.5 |
+| `Abgeglichen` | Zahlung gebucht, Bankumsatz vollständig abgeglichen | – |
+| `Manuelle Pruefung` | Mehrdeutig, Rechnungsnummer nicht offen, mehrere IDs, aktive Einzugsposition, Teil einer Lastschriftzeile, Rest einer Überzahlung, stornierte ERPverein-Zahlung, verworfener Vorschlag | ERPverein ändert den Bankumsatz nicht mehr von selbst |
+
+Regel: `Offen` heißt „ERPverein weiß noch nichts Sicheres“; der Fall kann sich von selbst lösen. `Manuelle Pruefung` heißt „ein Mensch muss entscheiden“; ein späterer Abgleich darf diese Entscheidung nicht vorwegnehmen. Der Hinweis (`erpverein_match_note`) nennt immer Customer, Rechnungen, Beträge, Signale und Konflikte, soweit vorhanden (Kapitel 16.9).
+
+### 36.5 Vorschlag bestätigen und verwerfen
+
+1. `erpverein.api.transfer_settlement.get_proposal` berechnet den Vorschlag neu und gibt Zuordnungen, Hinweis und einen Hash über Bankumsatz und Zuordnungen zurück.
+2. `erpverein.api.transfer_settlement.confirm_proposal` sperrt Bankumsatz und Rechnungen, berechnet erneut und bucht nur bei gleichem Hash. Ein Konflikt (zum Beispiel eine inzwischen aktive Einzugsposition) verhindert die Buchung. Der Hinweis nennt den bestätigenden Benutzer.
+3. `erpverein.api.transfer_settlement.reject_proposal` verlangt einen Grund und setzt `Manuelle Pruefung`.
+4. Rechte: Bestätigen braucht dieselben Rechte wie der Abgleich-Job. Anzeigen braucht eine Accounts-Rolle und Leserecht auf Bankumsatz, Rechnungen und Einzugspositionen. Verwerfen braucht eine Accounts-Rolle und Schreibrecht auf den Bankumsatz.
+
+### 36.6 Wiederanlauf, Storno und „Erledigt“
+
+1. **Anker:** `Payment Entry.erpverein_transfer_key` = SHA-256 über Bankumsatz und Customer, eindeutiger Index. Eine stornierte Zahlung behält ihn. ERPverein bucht für dasselbe Paar nie eine zweite Zahlung (Kapitel 22.2).
+2. Ein zweiter Lauf findet den Bankumsatz abgeglichen und tut nichts. Ein fehlgeschlagener Lauf setzt seinen Savepoint zurück; es bleibt keine Zahlung ohne Abgleich.
+3. **Storno:** Ein Hook an `Payment Entry` (`on_cancel`) setzt den Bankumsatz einer ERPverein-Überweisung auf `Manuelle Pruefung`. Das Storno braucht Schreibrecht auf den Bankumsatz.
+4. Der Hook `validate` an `Payment Entry` schützt auch `erpverein_transfer_key`; nur ERPverein setzt ihn.
+5. **Erledigt:** `erpverein.api.sepa_collection.mark_done` setzt eine Position in `Manuelle Pruefung` auf `Erledigt`, verlangt einen Grund, schreibt `resolution_note` (Benutzer, Datum, Grund, bisheriges Prüfergebnis), leert `processing_error` und kommentiert Position und Lauf. Der Lauf geht auf `Abgestimmt`, wenn jede Position `Bezahlt` oder `Erledigt` ist und jeder zugehörige Bankumsatz abgeglichen ist. Für erledigte Positionen bucht der Abgleich nichts mehr.
+
+### 36.7 Arbeitsvorrat
+
+Script Report „ERPverein Arbeitsvorrat“ (`erpverein/erpverein/report/erpverein_arbeitsvorrat/`, Logik in `erpverein/services/work_queue_service.py`). Rollen: `Accounts User`, `Accounts Manager`. Filter: Unternehmen, Bereich, Tage voraus für die Vorabankündigung (Standard 45). Spalten: Bereich, Datum, Beleg (Link), Betrag, Kunde, Status, Grund, nächste Aktion, Gegenseite (Name und maskierte IBAN), Verwendungszweck (maskiert).
+
+| Bereich | Fall |
+|---|---|
+| Bankumsatz | gebucht, offener Betrag > 0: `Offen`, `Vorschlag`, `Manuelle Pruefung`, aufgehobener ERPverein-Abgleich oder ohne ERPverein-Status |
+| Einzugslauf | `Manuelle Pruefung`; oder `Exportiert`/`Bankreferenz erfasst` ohne Sammelgutschrift nach Einzugsdatum plus Toleranz |
+| Einzugsposition | `Manuelle Pruefung` |
+| Bankimport | `Teilfehler`, `Fehler` oder Abgleich `Fehler` |
+| Zahlungsplan | Rechnung (Entwurf oder gebucht, offen) mit `erpverein_schedule_note` |
+| Vorabankündigung | Lastschriftzeile ohne aktive Einzugsposition, Fälligkeit zwischen Go-live-Stichtag und heute plus Tage voraus, Vorabankündigung fehlt oder kommt zu spät (Prüfung aus Kapitel 31.4 mit dem geplanten Einzugsdatum) |
+
+1. Lesen nur mit `frappe.get_list` (berechtigungsbewusst). Ein Bereich ohne Leserecht entfällt; die Meldung nennt ihn.
+2. IBANs erscheinen nur maskiert; Hinweise und Verwendungszweck laufen durch die Maskierung (Kapitel 20.4).
+3. Ein Fall verschwindet von selbst, wenn sein Grund entfällt (zum Beispiel ein im Banking-Bereich abgeglichener Bankumsatz).
+4. Navigation: „Arbeitsvorrat“ in Workspace und Sidebar „Vereinsverwaltung“; Knopf „Arbeitsvorrat“ im Bankumsatz.
+
+### 36.8 Anpassen nach dem echten Abruf
+
+| Was | Wo |
+|---|---|
+| Muster der Rechnungsnummer | `INVOICE_NUMBER_PATTERN` in `transfer_settlement_matcher.py` |
+| Muster und Abrechnungsart der IDs | `PAYER_ID_PATTERN`, `PAYER_ID_KINDS` |
+| Kategorien, die keine Überweisung sind | `EXCLUDED_CATEGORIES` |
+| Wörter, die im Namen nicht zählen | `NAME_NOISE_WORDS` |
+| Reihenfolge der Zeilen bei Teilzahlung | `allocation_order` |
+| Vorschau der Vorabankündigung | `DEFAULT_DAYS_AHEAD` in `work_queue_service.py` |
+| Tiefe der Berichtigungskette | `MAX_AMENDMENTS` in `transfer_settlement_service.py` |
+| Kategorie „Überweisung eingehend“ | Klassifikation in `bank_statement_parser.py` (Kapitel 34.6) |
+
+### 36.9 Feldnamen der Umsetzung
+
+| DocType | Felder |
+|---|---|
+| `Payment Entry` (Custom Field) | `erpverein_transfer_key` (eindeutig, versteckt, schreibgeschützt, nicht kopiert); dazu `erpverein_bank_transaction` aus Phase 4 |
+| `SEPA Einzugsposition` | Status `Erledigt`, Feld `resolution_note` |
+| `Bank Transaction` | `erpverein_match_status` mit `Vorschlag` (Option aus Phase 3), `erpverein_match_note` |
+
+### 36.10 Offene Punkte
+
+1. Ein echter Abruf mit der Vorlage `v3` fehlt. Danach werden Kategorie und Füllgrad eingehender Überweisungen geprüft (Kapitel 34.8, 35.8).
+2. Rücklastschriften erscheinen bis Phase 6 als offene Bankumsätze im Arbeitsvorrat.
+3. Eine erledigte Position hält ihre Zahlungsplanzeile gesperrt. Ein neuer Einzug nach einer Rückgabe kommt mit Phase 6.
+4. Eine Zahlung über mehrere Rechnungen übernimmt Kostenstelle und Dimensionen der ersten Rechnung (Verhalten von `get_payment_entry`).

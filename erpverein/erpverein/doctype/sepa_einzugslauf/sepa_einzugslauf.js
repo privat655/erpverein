@@ -47,7 +47,9 @@ function erpverein_show_settlement_status(frm) {
     const status = frm.doc.status;
     if (status === "Abgestimmt") {
         frm.dashboard.set_headline_alert(
-            __("Abgestimmt am {0}. Jede Position hat eine gebuchte Zahlung.", [frappe.datetime.str_to_user(frm.doc.settled_at)]),
+            __("Abgestimmt am {0}. Jede Position ist bezahlt oder als erledigt markiert.", [
+                frappe.datetime.str_to_user(frm.doc.settled_at),
+            ]),
             "green",
         );
     } else if (status === "Bankgutschrift erkannt") {

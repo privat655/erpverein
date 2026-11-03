@@ -51,6 +51,8 @@ POSITION_STATUS_CHECKED = "Geprueft"
 POSITION_STATUS_EXPORTED = "Exportiert"
 POSITION_STATUS_PAID = "Bezahlt"
 POSITION_STATUS_REVIEW = "Manuelle Pruefung"
+# The treasurer closed a review case in the banking area; ERPverein books nothing more for this position.
+POSITION_STATUS_DONE = "Erledigt"
 POSITION_STATUS_CANCELLED = "Storniert"
 OPEN_RUN_STATUSES = {RUN_STATUS_DRAFT, RUN_STATUS_CHECKED}
 EXPORTED_RUN_STATUSES = {RUN_STATUS_EXPORTED, RUN_STATUS_BANK_REFERENCE}

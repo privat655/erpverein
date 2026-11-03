@@ -10,7 +10,7 @@ from erpverein.services.sepa_collection_service import (
     create_collection_runs,
     set_collection_bank_reference,
 )
-from erpverein.services.sepa_settlement_service import start_run_reconciliation
+from erpverein.services.sepa_settlement_service import mark_position_done, start_run_reconciliation
 
 
 @frappe.whitelist()
@@ -62,3 +62,8 @@ def set_bank_reference(run: str, reference: str) -> dict:
 @frappe.whitelist(methods=["POST"])
 def start_reconciliation(run: str) -> dict:
     return start_run_reconciliation(run)
+
+
+@frappe.whitelist(methods=["POST"])
+def mark_done(position: str, reason: str) -> dict:
+    return mark_position_done(position, reason)

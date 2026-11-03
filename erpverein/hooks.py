@@ -12,7 +12,10 @@ after_migrate = "erpverein.install.after_migrate"
 before_uninstall = "erpverein.uninstall.before_uninstall"
 before_tests = "erpverein.tests.before_tests.before_tests"
 
-doctype_js = {"Sales Invoice": "public/js/sales_invoice.js"}
+doctype_js = {
+    "Sales Invoice": "public/js/sales_invoice.js",
+    "Bank Transaction": "public/js/bank_transaction.js",
+}
 doctype_list_js = {"Sales Invoice": "public/js/sales_invoice_list.js"}
 
 jinja = {
@@ -62,7 +65,10 @@ doc_events = {
     },
     "Payment Entry": {
         "validate": "erpverein.services.sepa_settlement_service.validate_payment_entry_provenance",
-        "on_cancel": "erpverein.services.sepa_settlement_service.handle_cancelled_collection_payment",
+        "on_cancel": [
+            "erpverein.services.sepa_settlement_service.handle_cancelled_collection_payment",
+            "erpverein.services.transfer_settlement_service.handle_cancelled_transfer_payment",
+        ],
     },
 }
 

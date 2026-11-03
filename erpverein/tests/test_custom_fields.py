@@ -410,6 +410,17 @@ EXPECTED_CUSTOM_FIELDS = {
 			"no_copy": 1,
 			"read_only": 1,
 		},
+		{
+			"fieldname": "erpverein_transfer_key",
+			"label": "ERPverein Ueberweisungsschluessel",
+			"fieldtype": "Data",
+			"insert_after": "erpverein_bank_transaction",
+			"description": "Bankumsatz und Kunde einer Ueberweisung, die ERPverein zugeordnet hat.",
+			"hidden": 1,
+			"no_copy": 1,
+			"read_only": 1,
+			"unique": 1,
+		},
 	],
 }
 

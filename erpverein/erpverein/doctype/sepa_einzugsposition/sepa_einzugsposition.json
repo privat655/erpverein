@@ -39,6 +39,7 @@
   "settlement_bank_transaction",
   "processing_section",
   "processing_error",
+  "resolution_note",
   "cancel_reason",
   "processing_column_break",
   "generation_key",
@@ -70,7 +71,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Entwurf\nGeprueft\nExportiert\nBezahlt\nManuelle Pruefung\nStorniert",
+   "options": "Entwurf\nGeprueft\nExportiert\nBezahlt\nManuelle Pruefung\nErledigt\nStorniert",
    "read_only": 1
   },
   {
@@ -261,6 +262,14 @@
    "read_only": 1
   },
   {
+   "description": "Wer die Position nach der Klaerung im Banking-Bereich als erledigt markiert hat, wann und warum.",
+   "fieldname": "resolution_note",
+   "fieldtype": "Small Text",
+   "label": "Erledigt-Vermerk",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "cancel_reason",
    "fieldtype": "Small Text",
    "label": "Grund der Stornierung",
@@ -301,7 +310,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-11-02 18:00:00.000000",
+ "modified": "2026-11-02 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Einzugsposition",

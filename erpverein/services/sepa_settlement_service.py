@@ -3,7 +3,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, fmt_money, getdate, now_datetime, strip_html
+from frappe.utils import cint, flt, fmt_money, formatdate, getdate, now_datetime, nowdate, strip_html
 
 from erpverein.custom_fields import (
     BANK_TRANSACTION_CATEGORY_FIELDNAME,
@@ -13,6 +13,7 @@ from erpverein.custom_fields import (
     BANK_TRANSACTION_MATCH_STATUS_FIELDNAME,
     PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
     PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
+    PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
 )
 from erpverein.services import bank_import_service
 from erpverein.services.bank_statement_parser import mask_sensitive_text
@@ -20,6 +21,7 @@ from erpverein.services.billing_common import is_retryable_error
 from erpverein.services.payment_schedule_service import AMOUNT_TOLERANCE
 from erpverein.services.sepa_collection_service import (
     POSITION_DOCTYPE,
+    POSITION_STATUS_DONE,
     POSITION_STATUS_EXPORTED,
     POSITION_STATUS_PAID,
     POSITION_STATUS_REVIEW,
@@ -34,6 +36,7 @@ from erpverein.services.sepa_collection_service import (
     get_active_position_docs,
     get_locked_run,
     has_accounts_role,
+    require_reason,
     save_position,
     save_run_totals,
 )
@@ -58,6 +61,8 @@ EVALUATED_MATCH_STATUSES = (MATCH_STATUS_OPEN, MATCH_STATUS_REVIEW)
 BATCH_RUN_STATUSES = (RUN_STATUS_EXPORTED, RUN_STATUS_BANK_REFERENCE, RUN_STATUS_REVIEW)
 RESTART_RUN_STATUSES = (RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_REVIEW)
 OPEN_POSITION_STATUSES = (POSITION_STATUS_EXPORTED, POSITION_STATUS_REVIEW)
+# A position is settled when it is paid or when the treasurer marked a review case as done.
+SETTLED_POSITION_STATUSES = (POSITION_STATUS_PAID, POSITION_STATUS_DONE)
 RECONCILIATION_PERMISSIONS = (
     (RUN_DOCTYPE, "write"),
     (POSITION_DOCTYPE, "write"),
@@ -66,6 +71,10 @@ RECONCILIATION_PERMISSIONS = (
     ("Payment Entry", "create"),
     ("Payment Entry", "submit"),
     ("Sales Invoice", "read"),
+    ("Customer", "read"),
+    ("Bank Account", "read"),
+    ("Mitglied", "read"),
+    ("Mieter", "read"),
 )
 CREDIT_FIELDS = [
     "name",
@@ -165,8 +174,17 @@ def run_bank_reconciliation(bank_account: str, bank_import: str | None = None) -
     record_result(
         bank_import,
         bank_import_service.RECONCILIATION_DONE,
-        _("{0} Zahlungen gebucht, {1} Einzugslaeufe abgestimmt, {2} Bankumsaetze zur manuellen Pruefung.").format(
-            summary.payments, summary.settled_runs, summary.review
+        _(
+            "{0} Zahlungen gebucht, {1} Einzugslaeufe abgestimmt, {2} Ueberweisungen zugeordnet, "
+            "{3} Vorschlaege warten auf Bestaetigung, {4} Bankumsaetze zur manuellen Pruefung, {5} Fehler. "
+            "Offene Faelle zeigt der Arbeitsvorrat."
+        ).format(
+            summary.payments,
+            summary.settled_runs,
+            summary.transfers,
+            summary.proposals,
+            summary.review,
+            summary.errors,
         ),
     )
 
@@ -201,7 +219,7 @@ def truncate_note(value: str | None) -> str | None:
 
 
 def new_summary() -> frappe._dict:
-    return frappe._dict(payments=0, settled_runs=0, review=0)
+    return frappe._dict(payments=0, settled_runs=0, review=0, transfers=0, proposals=0, errors=0)
 
 
 def reconcile_bank_account(bank_account: str) -> frappe._dict:
@@ -222,6 +240,11 @@ def reconcile_bank_account(bank_account: str) -> frappe._dict:
             batch_credits.append(row)
     for decision in match_run_credits([to_credit(row) for row in batch_credits], get_batch_runs(bank_account)):
         apply_run_decision(decision, summary)
+    # Imported here to avoid a cycle: the transfer step uses the helpers of this module.
+    from erpverein.services.transfer_settlement_service import settle_transfer_credits
+
+    # Self-payers last: only credits that the direct debit settlement did not take (spec 16).
+    settle_transfer_credits(bank_account, summary)
     return summary
 
 
@@ -500,7 +523,12 @@ def process_run_settlement(run, summary) -> None:
 def settle_transaction_positions(run, transaction_name: str, positions: list, summary) -> str | None:
     transaction = lock_bank_transaction(transaction_name)
     linked = {row.payment_entry for row in transaction.payment_entries if row.payment_document == "Payment Entry"}
-    pending = [position for position in positions if not position.payment_entry or position.payment_entry not in linked]
+    pending = [
+        position
+        for position in positions
+        if position.status != POSITION_STATUS_DONE
+        and (not position.payment_entry or position.payment_entry not in linked)
+    ]
     if not pending:
         return None
     reason = None
@@ -684,7 +712,7 @@ def refresh_run_settlement(run, summary=None, note: str | None = None) -> None:
         if flt(frappe.db.get_value("Bank Transaction", name, "unallocated_amount")) > AMOUNT_TOLERANCE
     }
     review = [position for position in positions if position.status == POSITION_STATUS_REVIEW]
-    all_paid = bool(positions) and all(position.status == POSITION_STATUS_PAID for position in positions)
+    all_paid = bool(positions) and all(position.status in SETTLED_POSITION_STATUSES for position in positions)
     if all_paid and not unreconciled and not note:
         status = RUN_STATUS_SETTLED
     elif review or note or (all_paid and unreconciled):
@@ -714,7 +742,7 @@ def refresh_run_settlement(run, summary=None, note: str | None = None) -> None:
         save_run_totals(run)
     for name in transactions:
         group = [position for position in positions if position.settlement_bank_transaction == name]
-        if name not in unreconciled and all(position.status == POSITION_STATUS_PAID for position in group):
+        if name not in unreconciled and all(position.status in SETTLED_POSITION_STATUSES for position in group):
             set_credit_match(name, MATCH_STATUS_MATCHED, describe_settlement(run, group))
         else:
             set_credit_match(name, MATCH_STATUS_REVIEW, note or _("Der Bankumsatz ist nicht vollstaendig abgeglichen."))
@@ -784,6 +812,29 @@ def flag_failed_settlement(run_name: str, reason: str, summary=None) -> None:
         set_run_review(run, reason)
 
 
+def mark_position_done(position_name: str, reason: str | None = None) -> dict:
+    """The treasurer closed a review case in the banking area; the run can then be settled (spec 35.8)."""
+    run_name = frappe.db.get_value(POSITION_DOCTYPE, position_name, "collection_run")
+    if not run_name:
+        frappe.throw(_("Die Einzugsposition {0} existiert nicht.").format(position_name))
+    run = get_locked_run(run_name)
+    position = frappe.get_doc(POSITION_DOCTYPE, position_name)
+    position.check_permission("write")
+    if position.status != POSITION_STATUS_REVIEW:
+        frappe.throw(_("Nur eine Position in Manuelle Pruefung laesst sich als erledigt markieren."))
+    reason = require_reason(reason)
+    note = _("Erledigt von {0} am {1}: {2}").format(frappe.session.user, formatdate(nowdate(), "dd.MM.yyyy"), reason)
+    if position.processing_error:
+        # The review reason moves into the note: a settled run shows no open error any more.
+        note += " " + _("Pruefergebnis war: {0}").format(position.processing_error)
+    note = truncate_note(note)
+    save_position(position, {"status": POSITION_STATUS_DONE, "resolution_note": note, "processing_error": None})
+    position.add_comment("Info", note)
+    run.add_comment("Info", _("Position {0} als erledigt markiert: {1}").format(position.name, reason))
+    refresh_run_settlement(run)
+    return {"position": position.name, "status": position.status, "run": run.name, "run_status": run.status}
+
+
 def flag_position_for_review(position_name: str, reason: str, summary=None) -> None:
     run = get_locked_run(frappe.db.get_value(POSITION_DOCTYPE, position_name, "collection_run"))
     position = frappe.get_doc(POSITION_DOCTYPE, position_name)
@@ -797,7 +848,11 @@ def validate_payment_entry_provenance(doc, method: str | None = None) -> None:
     if doc.flags.get(SETTLEMENT_FLAG):
         return
     previous = doc.get_doc_before_save()
-    for fieldname in (PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME, PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME):
+    for fieldname in (
+        PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
+        PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
+        PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
+    ):
         if (doc.get(fieldname) or None) != ((previous.get(fieldname) if previous else None) or None):
             frappe.throw(_("Die SEPA-Felder einer Zahlung setzt nur ERPverein."))
 

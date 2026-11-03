@@ -18,7 +18,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Vereinsverwaltung",
-    "link_count": 11,
+    "link_count": 12,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -113,6 +113,17 @@
   {
    "dependencies": "",
    "hidden": 0,
+   "is_query_report": 1,
+   "label": "Arbeitsvorrat",
+   "link_count": 0,
+   "link_to": "ERPverein Arbeitsvorrat",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
    "is_query_report": 0,
      "label": "Beitragsabrechnungen",
    "link_count": 0,
@@ -144,7 +155,7 @@
     "type": "Link"
    }
  ],
- "modified": "2026-11-02 18:00:00.000000",
+ "modified": "2026-11-02 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "Vereinsverwaltung",
