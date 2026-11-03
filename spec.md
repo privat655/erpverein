@@ -2,7 +2,7 @@
 
 **Dokument:** `spec.md`  
 **Status:** Entwurf zur fachlichen Freigabe  
-**Version:** 0.6 vom 02.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34); Abgleich der Sammelgutschrift nach Umsetzung präzisiert (Kapitel 35); Selbstzahler und Arbeitsvorrat nach Umsetzung präzisiert (Kapitel 36)  
+**Version:** 0.7 vom 03.11.2026 – Entscheidungen zu Zahlungsplan, SEPA-Lastschriftlauf und Bankabgleich eingearbeitet (Kapitel 31 und 32); Einzugslauf und pain.008 nach Umsetzung präzisiert (Kapitel 33); Bankimport nach Umsetzung präzisiert (Kapitel 34); Abgleich der Sammelgutschrift nach Umsetzung präzisiert (Kapitel 35); Selbstzahler und Arbeitsvorrat nach Umsetzung präzisiert (Kapitel 36); Rücklastschriften und Rejects nach Umsetzung präzisiert (Kapitel 37)  
 **Geltungsbereich:** ERPverein auf Frappe `v16.54.0` und ERPNext `v16.53.0`\
 **Implementierungsstatus dieses Dokuments:** Nur Spezifikation; keine der hier beschriebenen neuen Funktionen ist durch dieses Dokument implementiert.  
 **Datenschutz:** Dieses Dokument enthält ausschließlich abstrahierte oder synthetische Beispiele. Es enthält keine produktiven Namen, Bankverbindungen, Kontonummern, Beträge, Mandatsreferenzen, End-to-End-Referenzen oder Originalbuchungstexte.
@@ -424,16 +424,15 @@ Vorhanden sind:
 - tägliche Aktualisierung der SEPA-Einzugsplanprojektionen,
 - stündliche Bereinigung beziehungsweise Abstimmung veralteter Abrechnungsjobs.
 
-Dazu kommt seit Phase 4 ein Hintergrundjob nach jedem Bankimport: der Abgleich der Sammelgutschrift (Kapitel 35). Seit Phase 5 ordnet derselbe Job danach Überweisungen von Selbstzahlern zu (Kapitel 36).
+Dazu kommt seit Phase 4 ein Hintergrundjob nach jedem Bankimport: der Abgleich der Sammelgutschrift (Kapitel 35). Seit Phase 5 ordnet derselbe Job danach Überweisungen von Selbstzahlern zu (Kapitel 36). Seit Phase 6 bucht er zwischen beiden Schritten Rücklastschriften und Rejects; ein täglicher Job schließt Einzugsläufe 8 Wochen nach dem Einzugsdatum ab (Kapitel 37).
 
 ### 6.9 Noch nicht implementiert
 
-Stand 02.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34), der automatische Abgleich der Sammelgutschrift mit einer Zahlung je Einzugsposition (Phase 4, Kapitel 35) und die Zuordnung von Überweisungen der Selbstzahler mit Vorschlägen und Arbeitsvorrat (Phase 5, Kapitel 36).
+Stand 03.11.2026: Umgesetzt sind Zahlungsplan und Vorabankündigung (Phase 1, Kapitel 31), Einzugsläufe, Einzugspositionen und `pain.008.001.08`-Export mit End-to-End-Referenzen (Phase 2, Kapitel 33) sowie der Bankimport der AqBanking-CSV über n8n mit Duplikatschutz (Phase 3, Kapitel 34), der automatische Abgleich der Sammelgutschrift mit einer Zahlung je Einzugsposition (Phase 4, Kapitel 35), die Zuordnung von Überweisungen der Selbstzahler mit Vorschlägen und Arbeitsvorrat (Phase 5, Kapitel 36) und Rücklastschriften und Rejects mit Gegenbuchung, Gebühr und Entscheidung des Kassenwarts (Phase 6, Kapitel 37).
 
 Noch nicht vorhanden sind:
 
 - eingebettete Subscription-, Rechnungs- und Zahlungsansichten in Mitglied und Mieter,
-- Reject- und Rücklastschriftprozess,
 - historische Übernahme ab 2016.
 
 ---
@@ -744,6 +743,8 @@ Umsetzung Phase 2: Der Lauf kennt die Status `Entwurf`, `Geprueft`, `Exportiert`
 
 Umsetzung Phase 4: Dazu kommen `Bankgutschrift erkannt`, `Abgestimmt` und `Manuelle Pruefung` (Kapitel 35.4). Ein Lauf mit Bankgutschrift oder Zahlungen lässt sich nicht mehr stornieren. `Teilweise zurueckbelastet` und `Abgeschlossen` kommen mit Phase 6.
 
+Umsetzung Phase 6: Dazu kommen `Teilweise zurueckbelastet` (mindestens eine Position zurückbelastet, alle anderen bezahlt oder erledigt) und `Abgeschlossen` (8 Wochen nach dem Einzugsdatum, jede Rückgabe entschieden; Kapitel 37.5). Eine spätere Rückgabe öffnet einen abgeschlossenen Lauf wieder.
+
 ### 10.5 Regeln
 
 - Ein Einzugslauf hat genau ein Einzugsdatum und genau einen Sequenztyp. Er erzeugt genau eine Datei mit genau einem `PmtInf`-Block. Bei mehreren Einzugsdaten entstehen mehrere Einzugsläufe.
@@ -862,6 +863,8 @@ Umsetzung Phase 2: Die Position kennt die Status `Entwurf`, `Geprueft`, `Exporti
 Umsetzung Phase 4: Dazu kommen `Bezahlt` (Zahlung gebucht) und `Manuelle Pruefung` (keine Zahlung, Grund in `processing_error`). `Bankbestaetigt` entfällt, weil ERPverein Zuordnung und Zahlung in einem Schritt erledigt. Eine bezahlte Position bleibt aktiv.
 
 Umsetzung Phase 5: Dazu kommt `Erledigt`. Der Kassenwart setzt ihn für eine Position in `Manuelle Pruefung`, nachdem er den Fall im Banking-Bereich geklärt hat (Kapitel 36.6). Eine erledigte Position bleibt aktiv; ihre Zahlungsplanzeile bleibt für neue Einzüge gesperrt.
+
+Umsetzung Phase 6: Dazu kommt `Rueckbelastet` (Gegenbuchung gebucht). Abweichend vom Diagramm und vom Satz „später auch nicht abgelehnt oder zurückbelastet“ in der Umsetzung Phase 2 bleibt eine zurückbelastete Position aktiv, bis der Kassenwart entscheidet (Entscheidung E35, Kapitel 37.6). Erst die Entscheidung gibt die Zahlungsplanzeile frei. Sonst nähme der nächste Einzugslauf die wieder geöffnete Zeile von selbst auf. `Abgelehnt` entfällt: Die Bank bucht einen Reject nach der Sammelgutschrift als eigene Belastung (Kapitel 37.1).
 
 ### 11.5 Betragsregeln
 
@@ -1700,6 +1703,8 @@ Eine spätere Erweiterung darf dafür eine separate Rechnung erzeugen. Sie darf 
 - `RETURN-009` manuelle Prüfung
 - `RETURN-010` Read-only-Anzeige
 
+> **Umsetzung (Phase 6):** Kapitel 37. Abweichungen: Ein Reject nach der Sammelgutschrift ist eine Rücklastschrift ohne Gebühr; `Abgelehnt` entfällt (17.3, 37.1). Ohne End-to-End-Referenz muss der Betrag genau aufgehen (17.2, 37.2). Die Gebühr hat keine Obergrenze (E37).
+
 ---
 
 ## 18. Allgemeine Bankregeln
@@ -2049,7 +2054,7 @@ Idempotenzanker:
 | Export | Exportdatei-Hash |
 | Lastschriftzahlung | eindeutiger Positionslink auf Payment Entry |
 | Überweisungszahlung | eindeutiger Schlüssel aus Bankumsatz und Customer auf Payment Entry (`erpverein_transfer_key`, Kapitel 36.6) |
-| Rücklastschrift | eindeutiger Positions- und Bank-Transaction-Link auf Journal Entry |
+| Rücklastschrift | eindeutiger Positions- und Bank-Transaction-Link auf Journal Entry (`erpverein_sepa_collection_item`, `erpverein_return_bank_transaction`, Kapitel 37.7) |
 | historische Rechnung | Migrationsfingerprint |
 
 ### 22.3 Nebenläufigkeit
@@ -2078,7 +2083,7 @@ Ein zentraler Arbeitsvorrat zeigt:
 
 Jeder Eintrag zeigt den Grund und mögliche nächste Aktionen.
 
-> **Umsetzung (Phase 5):** Script Report „ERPverein Arbeitsvorrat“ mit den Bereichen Bankumsatz, Einzugslauf, Einzugsposition, Bankimport, Zahlungsplan und Vorabankündigung (Kapitel 36.7). Unklare Rücklastschriften erscheinen als offene Bankumsätze, bis Phase 6 sie zuordnet.
+> **Umsetzung (Phase 5):** Script Report „ERPverein Arbeitsvorrat“ mit den Bereichen Bankumsatz, Einzugslauf, Einzugsposition, Bankimport, Zahlungsplan und Vorabankündigung (Kapitel 36.7). Unklare Rücklastschriften erscheinen als offene Bankumsätze, bis Phase 6 sie zuordnet. Seit Phase 6 zeigt der Bereich Einzugsposition auch zurückbelastete Positionen ohne Entscheidung; Rücklastschriften in `Manuelle Pruefung` nennen die Gegenbuchung von Hand als nächste Aktion (Kapitel 37.8).
 
 ---
 
@@ -2316,6 +2321,8 @@ Status: umgesetzt am 02.11.2026 (Kapitel 36); Prüfung der Klassifikation mit ei
 
 ### Phase 6 – Rücklastschriften (vor dem Release)
 
+Status: umgesetzt am 03.11.2026 (Kapitel 37); Prüfung der Klassifikation mit einem echten Abruf weiter offen.
+
 - Zuordnung, Gebührenbestimmung und Gegenbuchung,
 - Wiederöffnen der Zahlungsplanzeile,
 - Test T15.
@@ -2529,6 +2536,7 @@ Variante A (vom Benutzer freigegeben am 01.11.2026):
 
 - Eine Gegenbuchung (`Journal Entry`) öffnet die Rechnung wieder. Die Zahlungsplanzeile ändert ERPNext dabei nicht. Nur `Payment Entry` ändert Zeilen.
 - ERPverein öffnet die Zeile beim Buchen der Gegenbuchung selbst wieder: `paid_amount` minus Hauptbetrag, `outstanding` plus Hauptbetrag. Beim Stornieren der Gegenbuchung macht ERPverein das rückgängig. Schlüssel ist die Zahlungsbedingung aus der Einzugsposition.
+- Umsetzung Phase 6: Hooks `on_submit` und `on_cancel` an `Journal Entry`; sie wirken nur bei Buchungssätzen mit `erpverein_sepa_collection_item`, prüfen das Schreibrecht auf die Rechnung und ändern auch `base_paid_amount` und `base_outstanding` wie ERPNext (Kapitel 37.4).
 
 ### 31.7 Einstellungen in ERPNext
 
@@ -2596,6 +2604,9 @@ Das Firmen-`Bank Account` für Konto 18000 legt der Benutzer auf der Site an. Di
 | E32 | Rechnungen vor dem Go-live-Stichtag bucht ERPverein nur mit Rechnungsnummer; mit ID oder IBAN entsteht ein Vorschlag (Phase 5, 02.11.2026, O18). |
 | E33 | Mehrere Rechnungsnummern: ein Customer wird automatisch gebucht, mehrere Customers nur als Vorschlag (Phase 5, 02.11.2026). |
 | E34 | Der Arbeitsvorrat ist ein Script Report; Aktionen „Vorschlag bestätigen“, „Vorschlag verwerfen“ und „Als erledigt markieren“ stehen in den Formularen (Phase 5, 02.11.2026). |
+| E35 | Nach einer Rückgabe entscheidet der Kassenwart je Position: erneut einziehen (neue Fälligkeit, neue Vorabankündigung) oder auf Überweisung umstellen. Bis dahin bleibt die Zahlungsplanzeile gesperrt. ERPverein zieht nie selbst erneut ein (Phase 6, 03.11.2026; ersetzt „nicht mehr aktiv“ in 11.4). |
+| E36 | Ein Einzugslauf ist `Abgeschlossen` 8 Wochen nach dem Einzugsdatum, wenn jede Rückgabe entschieden ist (Phase 6, 03.11.2026). |
+| E37 | Die Rücklastschriftgebühr hat keine Obergrenze; ERPverein bucht sie automatisch, solange der Gebührentext nicht widerspricht. Kostenstelle ist die der Rechnung (Phase 6, 03.11.2026). |
 
 ### 32.2 Prüfergebnisse (Kurzfassung)
 
@@ -2663,7 +2674,7 @@ Vor dem Export storniert der Kassenwart einzelne Positionen oder den Lauf. Nach 
 
 ### 33.7 Feldnamen der Umsetzung
 
-Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für die Sammelgutschrift stehen in Kapitel 35.6; die Felder für die Rücklastschrift kommen mit Phase 6.
+Abweichend von 10.3 und 11.3 heißen die Felder so: `debtor_iban_masked` (statt `debtor_iban_last4`), `prenotification_sent_at` (Zeitpunkt der Vorabankündigung bei Erzeugung), `generation_key` und `active_key` (Idempotenz), `billing_kind` (Mitgliedsbeitrag oder Miete), `cancel_reason`, am Lauf zusätzlich `upload_earliest`, `upload_deadline`, `bank_order_reference` und `bank_reference_at`. Die Felder für die Sammelgutschrift stehen in Kapitel 35.6, die Felder für die Rücklastschrift in Kapitel 37.10.
 
 ---
 
@@ -2820,7 +2831,7 @@ Die `PmtInfId` ist der Laufname (20 Zeichen). Eine MT940-Kundenreferenz fasst nu
 
 1. Ein echter Abruf mit der Vorlage `v3` fehlt. Danach werden Kategorie, Text und Füllgrad der HVB-Sammelgutschrift geprüft (Kapitel 34.8).
 2. Erledigt mit Phase 5: Eine Position in `Manuelle Pruefung` lässt sich nach der Klärung im Banking-Bereich als erledigt markieren (Kapitel 36.6).
-3. Rejects vor der Gutschrift (Bankbetrag kleiner als die Laufsumme) und Rücklastschriften kommen mit Phase 6.
+3. Erledigt mit Phase 6: Rücklastschriften und Rejects (Kapitel 37). Ein Reject ohne Gutschrift (Bankbetrag kleiner als die Laufsumme) kam in den Beispieldaten nicht vor; er bleibt eine Betragsabweichung in `Manuelle Pruefung`.
 
 ---
 
@@ -2862,7 +2873,7 @@ Die `PmtInfId` ist der Laufname (20 Zeichen). Eine MT940-Kundenreferenz fasst nu
 2. Der offene Betrag einer Zeile ist der vorsichtige Wert aus Kapitel 31.5: Zahlungen ohne Zahlungsbedingung mindern zuerst die älteste Zeile.
 3. Bliebe eine Lastschriftzeile teilweise offen, bucht ERPverein nicht (`Manuelle Pruefung`). Der angekündigte Einzugsbetrag stimmte sonst nicht mehr. Eine ganz bezahlte Lastschriftzeile zieht ERPverein nicht mehr ein, weil ihr offener Betrag 0 ist.
 4. **Überzahlung (E31):** ERPverein bezahlt die Rechnungen voll; der Rest bleibt am Bankumsatz offen; Status `Manuelle Pruefung` mit dem Rest im Hinweis.
-5. **Aktive Einzugsposition:** Hat eine betroffene Rechnung eine Position, die weder `Bezahlt` noch `Erledigt` ist (Entwurf, Geprüft, Exportiert, Manuelle Prüfung), bucht ERPverein nicht. Der Hinweis nennt die Position. Sonst droht ein doppelter Einzug.
+5. **Aktive Einzugsposition:** Hat eine betroffene Rechnung eine Position, die weder `Bezahlt` noch `Erledigt` ist (Entwurf, Geprüft, Exportiert, Manuelle Prüfung), bucht ERPverein nicht. Der Hinweis nennt die Position. Sonst droht ein doppelter Einzug. Seit Phase 6: Ist die Position `Rueckbelastet` und wartet auf die Entscheidung des Kassenwarts, bleibt der Bankumsatz `Offen` und nennt die Position; nach der Entscheidung bucht der nächste Abgleich die Überweisung (Kapitel 37.6).
 6. **Zahlung:** je Customer eine `Payment Entry` aus `get_payment_entry`; Partei ist der Customer der Rechnung, auch wenn eine dritte Person zahlt (der Hinweis nennt das). Buchungsdatum und `reference_date` = Buchungsdatum des Bankumsatzes; `bank_account` = Vereinskonto; Zahlungsweise „Überweisung“; `reference_no` = Referenz der Bank, sonst Bank-ID, sonst Name des Bankumsatzes; je Zahlungsplanzeile eine Referenz mit ihrer Zahlungsbedingung. Hat eine Rechnung Zeilen ohne Zahlungsbedingung, bucht ERPverein wie ERPNext eine Referenz je Rechnung ohne Zahlungsbedingung.
 7. **Abgleich:** `reconcile_vouchers` mit genau diesen Zahlungen (Abgleichsart „Matched“). Nie `auto_reconcile_vouchers`; `Accounts Settings.auto_reconcile_payments` bleibt aus (Kapitel 31.7).
 
@@ -2934,6 +2945,127 @@ Script Report „ERPverein Arbeitsvorrat“ (`erpverein/erpverein/report/erpvere
 ### 36.10 Offene Punkte
 
 1. Ein echter Abruf mit der Vorlage `v3` fehlt. Danach werden Kategorie und Füllgrad eingehender Überweisungen geprüft (Kapitel 34.8, 35.8).
-2. Rücklastschriften erscheinen bis Phase 6 als offene Bankumsätze im Arbeitsvorrat.
-3. Eine erledigte Position hält ihre Zahlungsplanzeile gesperrt. Ein neuer Einzug nach einer Rückgabe kommt mit Phase 6.
+2. Erledigt mit Phase 6: Rücklastschriften bucht ERPverein selbst (Kapitel 37).
+3. Eine erledigte Position hält ihre Zahlungsplanzeile gesperrt. Ein neuer Einzug nach einer Rückgabe läuft seit Phase 6 über die Entscheidung des Kassenwarts (Kapitel 37.6).
 4. Eine Zahlung über mehrere Rechnungen übernimmt Kostenstelle und Dimensionen der ersten Rechnung (Verhalten von `get_payment_entry`).
+
+---
+
+## 37. Rücklastschriften und Rejects (Umsetzung Phase 6)
+
+### 37.1 Befund der Beispieldaten
+
+HVB-Export Variante 2 (10/2024 bis 10/2026), nur Zähler und Muster:
+
+| Buchungstext | Anzahl | Vorzeichen | Textschlüssel | EndToEnd | Mandat | Gläubiger-ID | Kundenreferenz | Zeitpunkt |
+|---|---:|---|---|---:|---:|---:|---:|---|
+| `SEPA Reject` | 14 | Belastung | 109 | 14 | 14 | 0 | 0 | am Tag einer Sammelgutschrift |
+| `SEPA Lastschrift-Rueckrechn` | 25 | Belastung | 109 | 25 | 25 | 0 | 0 | 1 bis 2 Tage nach einer Sammelgutschrift |
+
+1. Ein Reject kommt nach der Gutschrift als eigene Belastung. Die Gutschrift enthielt den Betrag. ERPverein behandelt ihn wie eine Rücklastschrift (17.3, letzter Satz). Einen Reject ohne Gutschrift zeigen die Daten nicht; der Status `Abgelehnt` entfällt.
+2. Der Verwendungszweck nennt den Grund in Worten („Sonstige Gründe“, „Konto aufgelöst“, „Deckung fehlt“), danach „Eigengebühren - x,xx“ und „Fremdgebühren - y,yy“ und den ursprünglichen Zweck. Die Gebühren lagen zusammen zwischen 9,55 und 12,67 EUR. Rejects nennen keine Gebühr.
+3. Vereinsmeister nutzte 4-stellige End-to-End-Referenzen. Rückgaben von Einzügen vor dem Go-live finden deshalb keine Einzugsposition.
+
+### 37.2 Zuordnung
+
+Die Regeln liegen ohne Frappe in `erpverein/services/sepa_return_matcher.py` und haben eigene Unit-Tests. Datenzugriff, Buchung und Abgleich liegen in `erpverein/services/sepa_return_service.py`.
+
+1. Kandidaten-Bankumsätze: gebucht, Belastung, nichts zugeordnet, `erpverein_match_status` `Offen`. Bankumsätze in `Manuelle Pruefung` ändert ERPverein nicht mehr von selbst.
+2. **End-to-End-Referenz:** Nennt die Belastung (`erpverein_sepa_end_to_end_reference` oder `reference_number`) die Referenz einer Einzugsposition, gehört sie zu dieser Position, in jeder Kategorie.
+3. **Ohne End-to-End-Referenz** gilt nur eine Belastung der Kategorie `Ruecklastschrift` oder `Lastschrift-Rueckgabe (Reject)`:
+   - Mandatsreferenz und IBAN-Hash der Gegenseite nennen den Zahler; sind beide da, müssen beide passen.
+   - Der Betrag nennt den Einzug: Belastung = Positionsbetrag + Gebühren aus dem Text.
+   - Passen mehrere Positionen, zählt das nächste Einzugsdatum vor der Belastung, wenn es eindeutig ist und höchstens `PROXIMITY_DAYS` (14) Tage zurückliegt. Sonst `Manuelle Pruefung` mit den Positionen.
+   - Positionen mit einem Einzugsdatum mehr als `MAX_RETURN_DAYS` (400) Tage vor der Belastung zählen nicht.
+4. Name und Betrag allein lösen nie eine Gegenbuchung aus. Ohne Referenz, Mandat und IBAN gilt `Manuelle Pruefung`.
+5. Zustand der Position:
+
+| Position | Ergebnis |
+|---|---|
+| `Bezahlt` mit Zahlung | Gegenbuchung |
+| `Exportiert` oder `Manuelle Pruefung` | Bankumsatz bleibt `Offen` mit Grund; der nächste Abgleich bucht, sobald die Zahlung gebucht ist |
+| `Erledigt` | `Manuelle Pruefung` |
+| `Rueckbelastet` mit anderem Bankumsatz | `Manuelle Pruefung` (keine zweite Gegenbuchung) |
+| Buchungsdatum vor dem Einzugsdatum | `Manuelle Pruefung` |
+
+### 37.3 Hauptbetrag und Gebühr
+
+1. Hauptbetrag = Betrag der Einzugsposition. Gebühr = Gesamtbelastung minus Hauptbetrag (17.7).
+2. Gesamtbelastung kleiner als Hauptbetrag: `Manuelle Pruefung`.
+3. Nennt der Text Gebühren (jedes Wort mit `GEBUEHR` oder `ENTGELT` vor einem Betrag), muss ihre Summe gleich der Gebühr sein. Sonst `Manuelle Pruefung` mit beiden Werten.
+4. Keine Obergrenze (E37).
+5. Grund: ISO-Code aus dem Text (`AC04`, `AM04`, `MD06`, …) oder ein deutscher Ausdruck („Sonstige Gründe“ → `MS03`, „Konto aufgelöst“ → `AC04`, „Deckung fehlt“ → `AM04`, „Widerspruch“ → `MD06`). ERPverein speichert Code und einen kurzen Text aus einer festen Liste, nie den Banktext.
+
+### 37.4 Gegenbuchung und Zahlungsplanzeile
+
+1. `Journal Entry` vom Typ `Bank Entry`: Buchungsdatum und `cheque_date` = Buchungsdatum der Belastung, `cheque_no` = End-to-End-Referenz der Position, Zahlungsweise „SEPA-Lastschrift“, Bemerkung mit Position, Rechnung, Bankumsatz und Grund.
+2. Zeilen nach 17.6: Soll Forderungskonto der Rechnung (`debit_to`) mit Partei Customer und Referenz auf die Rechnung (Hauptbetrag); Soll Gebührenkonto `default_fee_account` des Exportprofils des Laufs (Gebühr, nur wenn größer 0); Haben Hauptbuchkonto des Vereinskontos mit `bank_account` (Gesamtbelastung). Kostenstelle aller Zeilen ist die der Rechnung, sonst die des Unternehmens (E37).
+3. Vorprüfung, sonst `Manuelle Pruefung` mit Grund: Rechnung gebucht, Kunde und Unternehmen gleich, Belastung auf dem Vereinskonto des Laufs, nur Unternehmenswährung, ursprüngliche Zahlung gebucht, Zahlungsplanzeile bezahlt. Fehlt eine Einrichtung (Kostenstelle, Gebührenkonto des Unternehmens bei Gebühr), bleibt der Bankumsatz `Offen` mit Grund und zählt als Fehler; der nächste Abgleich versucht es erneut.
+4. ERPverein legt den Buchungssatz mit den Rechten des Job-Benutzers an, bucht ihn und gleicht ihn mit `reconcile_vouchers` ab (Abgleichsart „Matched“). Die ursprüngliche Zahlung bleibt bestehen (E8); `Unreconcile Payment` nutzt ERPverein nicht (17.9).
+5. Der Hook `on_submit` an `Journal Entry` öffnet die Zahlungsplanzeile (31.6): `paid_amount` und `base_paid_amount` minus Hauptbetrag, `outstanding` und `base_outstanding` plus Hauptbetrag, Schlüssel Rechnung und Zahlungsbedingung der Position, mit Prüfung des Schreibrechts auf die Rechnung.
+6. Belastung, Buchungssatz, Abgleich und Status entstehen in einem Savepoint je Bankumsatz: ganz oder gar nicht.
+7. Der Hook `on_cancel` an `Payment Entry` lehnt das Storno der ursprünglichen Zahlung einer zurückbelasteten Position ab. Die Rechnung wäre sonst doppelt offen.
+
+### 37.5 Status
+
+| Objekt | Status | Bedeutung |
+|---|---|---|
+| Einzugsposition | `Rueckbelastet` | Gegenbuchung gebucht; `return_*`-Felder gesetzt. Ohne Entscheidung bleibt `active_key` gesetzt. |
+| Einzugslauf | `Teilweise zurueckbelastet` | Jede Position bezahlt, erledigt oder zurückbelastet, mindestens eine zurückbelastet, jede Sammelgutschrift abgeglichen |
+| Einzugslauf | `Abgeschlossen` | Wie `Abgestimmt` oder `Teilweise zurueckbelastet`, jede Rückgabe entschieden, Einzugsdatum mindestens `REFUND_PERIOD_DAYS` (56) Tage her; `closed_at` gesetzt |
+| Bankumsatz | `Abgeglichen` | Gegenbuchung gebucht und abgeglichen; der Hinweis nennt Position, Signale, Beträge, Grund und Buchungssatz |
+
+1. Begründung für `Abgeschlossen` (E36): Bei einer SEPA-Basislastschrift kann der Zahler 8 Wochen lang ohne Grund die Erstattung verlangen (§ 675x BGB). Danach ist eine Rückgabe die Ausnahme (nicht autorisierte Lastschrift, 13 Monate). Ein Lauf vorher als abgeschlossen zu führen, verdeckte erwartbare Rückgaben; ein Lauf, der 13 Monate offen bleibt, verdeckte den Normalfall.
+2. Der Status wird bei jedem Abgleich und jeder Entscheidung abgeleitet; der tägliche Job `close_settled_runs` schließt Läufe, deren Frist abgelaufen ist.
+3. Eine spätere Rückgabe bucht ERPverein trotzdem. Der Lauf geht zurück auf `Teilweise zurueckbelastet`, `closed_at` wird geleert. Nach der Entscheidung schließt der Lauf wieder.
+4. Summen und Anzahl des Laufs zählen jede nicht stornierte Position, auch eine zurückbelastete. Sie bleiben gleich der exportierten Datei.
+
+### 37.6 Entscheidung des Kassenwarts (E35)
+
+1. `erpverein.api.sepa_collection.decide_return(position, decision, due_date, note)` gilt für eine Position `Rueckbelastet` ohne Entscheidung mit gebuchter Gegenbuchung. Rechte: Schreibrecht auf Lauf und Position (System Manager und Accounts-Rolle), Schreib- und Buchungsrecht auf die Rechnung.
+2. **Erneut einziehen:** Pflicht ist eine neue Fälligkeit, frühestens das früheste Einzugsdatum und, wenn die Rechnung eine Vorabankündigung braucht, heute plus Frist (14 Tage). ERPverein ändert die Zeile über die Prüfungen von „Zahlungsplan bearbeiten“ (31.3). Die Zeile gilt als geändert; die Vorabankündigung geht auf `Erneut senden`. Erst nach dem erneuten Versand ist die Zeile einzugsbereit. Mieten ohne Vorabankündigung (E30) sind nach der Frist des Vorlaufs einzugsbereit.
+3. **Überweisung:** Die Zeile bekommt die Zahlungsweise „Überweisung“, auf Wunsch mit neuer Fälligkeit. Eine passende Überweisung bucht der Abgleich (Kapitel 36). Das geht auch ohne aktives Mandat (zum Beispiel nach „Konto aufgelöst“): Die übrigen Lastschriftzeilen behalten das Mandat der Rechnung; die Einzugsvorschau meldet es als nicht mehr aktiv.
+4. Die Entscheidung setzt `return_decision` und `return_decision_note` (Entscheidung, Benutzer, Datum, Fälligkeit, Notiz) und leert `active_key`. Erst dann ist die Zeile frei. Position, Lauf und Rechnung bekommen einen Kommentar.
+5. Bis zur Entscheidung zeigt die Einzugsvorschau die Zeile als vorhanden mit Hinweis auf die Rückgabe. Eine Überweisung für diese Rechnung bleibt `Offen` und nennt die Position; nach der Entscheidung bucht der Abgleich sie (36.3, Punkt 5).
+6. Die Entscheidung ist endgültig. Danach lehnt ERPverein das Storno der Gegenbuchung ab.
+
+### 37.7 Wiederanlauf und Storno
+
+1. **Anker:** `Journal Entry.erpverein_sepa_collection_item` und `erpverein_return_bank_transaction` sind eindeutig und bleiben an einem stornierten Buchungssatz. ERPverein bucht je Position und je Bankumsatz höchstens eine Gegenbuchung (22.2).
+2. Vor dem Anlegen sucht ERPverein einen gebuchten Buchungssatz mit beiden Ankern und setzt nur fehlende Schritte fort (Abgleich, Status). Ein stornierter oder fremder Buchungssatz führt zu `Manuelle Pruefung`.
+3. Ein Fehler setzt den Savepoint des Bankumsatzes zurück. Der Bankumsatz bleibt `Offen`; der Hinweis nennt den Grund; der nächste Abgleich versucht es erneut. Deadlocks und Lock-Timeouts gibt der Job an Frappe zurück.
+4. Vor dem Buchen sperrt ERPverein Lauf und Bankumsatz (`for_update`, Reihenfolge wie in Kapitel 35) und entscheidet erneut.
+5. **Storno der Gegenbuchung** (nur vor der Entscheidung, nur mit Schreibrecht auf die Position): ERPNext entfernt den Buchungssatz aus dem Bankumsatz. Der Hook `on_cancel` schließt die Zahlungsplanzeile wieder (nur wenn sie nicht inzwischen anders bezahlt ist), setzt Position und Bankumsatz auf `Manuelle Pruefung` mit Grund und leitet den Laufstatus neu ab. ERPverein bucht für diese Rückgabe keine neue Gegenbuchung. Der Kassenwart klärt den Fall von Hand und markiert die Position als erledigt.
+6. Der Hook `validate` an `Journal Entry` verhindert, dass ein Benutzer die ERPverein-Felder von Hand setzt. Eine Berichtigung (`amended_from`) eines stornierten Buchungssatzes verliert die Felder, denn Frappe kopiert beim Berichtigen auch `no_copy`-Felder; sie ist ein eigener Buchungssatz des Kassenwarts. Dasselbe gilt seit Phase 6 für ERPverein-Zahlungen (`Payment Entry`).
+7. **Rücklastschrift zuordnen:** Für eine Belastung in `Manuelle Pruefung` wählt der Kassenwart im Bankumsatz die bezahlte Einzugsposition (`erpverein.api.sepa_return.confirm_return`). ERPverein bucht wie der Abgleich; die Betragsregeln gelten weiter (Position bezahlt, Belastung mindestens Positionsbetrag), ein widersprechender Gebührentext steht nur im Hinweis. Rechte wie der Abgleich-Job.
+
+### 37.8 Arbeitsvorrat und Rechte
+
+1. Bereich Einzugsposition: Positionen `Rueckbelastet` ohne Entscheidung mit Bankumsatz, Gegenbuchung, Hauptbetrag, Gebühr und Grund; nächste Aktion „Erneut einziehen“ oder „Auf Überweisung umstellen“.
+2. Bereich Bankumsatz: Rücklastschriften in `Manuelle Pruefung` mit Grund; nächste Aktion „Rücklastschrift zuordnen“ oder Gegenbuchung von Hand. Wartende Rücklastschriften (`Offen`) nennen den Grund des Wartens.
+3. Der Abgleich braucht zusätzlich zu Kapitel 35.1 und 36.1 Anlegen und Buchen von `Journal Entry` und Schreibrecht auf `Sales Invoice`. Der Kassenwart hat diese Rechte (`Accounts User`).
+
+### 37.9 Anpassen nach dem echten Abruf
+
+| Was | Wo |
+|---|---|
+| Kategorien, in denen eine Belastung ohne End-to-End-Referenz zählt | `RETURN_CATEGORIES` in `sepa_return_matcher.py` |
+| Gebührenwörter und Betragsformat | `FEE_PATTERN` |
+| Rückgabegründe | `ISO_REASONS`, `REASON_PHRASES` |
+| Zeitliche Nähe, ältester Einzug, Erstattungsfrist | `PROXIMITY_DAYS`, `MAX_RETURN_DAYS`, `REFUND_PERIOD_DAYS` |
+| Klassifikation `Ruecklastschrift` und `Lastschrift-Rueckgabe (Reject)` | `bank_statement_parser.py` (Kapitel 34.6) |
+
+### 37.10 Feldnamen der Umsetzung
+
+| DocType | Felder |
+|---|---|
+| `SEPA Einzugsposition` | Status `Rueckbelastet`; `return_bank_transaction`, `return_journal_entry`, `return_principal_amount`, `return_fee_amount`, `return_reason_code`, `return_reason_text`, `return_decision` (`Erneut einziehen`, `Ueberweisung`), `return_decision_note` |
+| `SEPA Einzugslauf` | Status `Teilweise zurueckbelastet`, `Abgeschlossen`; `closed_at` |
+| `Journal Entry` (Custom Fields, 17.8) | `erpverein_sepa_collection_item` (eindeutig), `erpverein_return_bank_transaction` (eindeutig), `erpverein_return_principal_amount`, `erpverein_return_fee_amount`, `erpverein_return_reason_code` |
+
+### 37.11 Offene Punkte
+
+1. Ein echter Abruf mit der Vorlage `v3` fehlt weiter. Danach werden Buchungstext, Kategorie, Gebührentext und Füllgrad von Rückgaben im camt-Abruf geprüft (37.9).
+2. Ein Reject ohne Gutschrift (Bankbetrag kleiner als die Laufsumme) bleibt eine Betragsabweichung in `Manuelle Pruefung` (35.2, Punkt 4).
+3. Historische Rechnungen ohne ERPverein-Subscription (Phase H) lassen sich nach einer Rückgabe nicht über „Zahlungsplan bearbeiten“ ändern; die Entscheidung bricht dann mit Grund ab.
+4. Die Weiterberechnung der Gebühr an den Zahler bleibt außerhalb des Kernprozesses (17.10).

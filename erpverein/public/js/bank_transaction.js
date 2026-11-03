@@ -10,6 +10,9 @@ frappe.ui.form.on("Bank Transaction", {
             frm.add_custom_button(__("Vorschlag bestätigen"), () => erpverein_confirm_transfer_proposal(frm), group);
             frm.add_custom_button(__("Vorschlag verwerfen"), () => erpverein_reject_transfer_proposal(frm), group);
         }
+        if (frm.doc.erpverein_match_status === "Manuelle Pruefung" && open && flt(frm.doc.withdrawal) > 0) {
+            frm.add_custom_button(__("Rücklastschrift zuordnen"), () => erpverein_confirm_return(frm), __("ERPverein"));
+        }
         if (open && frm.doc.erpverein_match_status) {
             frm.add_custom_button(__("Arbeitsvorrat"), () => frappe.set_route("query-report", "ERPverein Arbeitsvorrat"));
         }
@@ -120,5 +123,48 @@ function erpverein_reject_transfer_proposal(frm) {
         },
         __("Vorschlag verwerfen"),
         __("Verwerfen"),
+    );
+}
+
+function erpverein_confirm_return(frm) {
+    frappe.prompt(
+        [
+            {
+                fieldtype: "HTML",
+                fieldname: "hint",
+                options: `<p>${__(
+                    "Wähle die bezahlte Einzugsposition, die die Bank zurückgegeben hat. ERPverein bucht die Gegenbuchung wie beim automatischen Abgleich: Hauptbetrag gleich Positionsbetrag, Gebühr gleich Rest. Die Belastung darf nicht kleiner sein als der Positionsbetrag.",
+                )}</p>`,
+            },
+            {
+                fieldtype: "Link",
+                fieldname: "position",
+                label: __("Einzugsposition"),
+                options: "SEPA Einzugsposition",
+                reqd: 1,
+                get_query: () => ({ filters: { status: "Bezahlt" } }),
+            },
+            { fieldtype: "Small Text", fieldname: "note", label: __("Notiz (optional)") },
+        ],
+        (values) => {
+            frappe.call({
+                method: "erpverein.api.sepa_return.confirm_return",
+                args: { bank_transaction: frm.doc.name, position: values.position, note: values.note },
+                freeze: true,
+                freeze_message: __("Gegenbuchung wird gebucht..."),
+                callback(r) {
+                    if (r.exc || !r.message) {
+                        return;
+                    }
+                    frappe.show_alert({
+                        message: __("Gebucht: {0}", [r.message.journal_entry]),
+                        indicator: "green",
+                    });
+                    frm.reload_doc();
+                },
+            });
+        },
+        __("Rücklastschrift zuordnen"),
+        __("Gegenbuchung buchen"),
     );
 }

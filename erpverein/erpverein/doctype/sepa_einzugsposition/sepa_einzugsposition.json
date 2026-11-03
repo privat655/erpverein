@@ -37,6 +37,16 @@
   "payment_entry",
   "payment_column_break",
   "settlement_bank_transaction",
+  "return_section",
+  "return_bank_transaction",
+  "return_journal_entry",
+  "return_principal_amount",
+  "return_fee_amount",
+  "return_column_break",
+  "return_reason_code",
+  "return_reason_text",
+  "return_decision",
+  "return_decision_note",
   "processing_section",
   "processing_error",
   "resolution_note",
@@ -71,7 +81,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Entwurf\nGeprueft\nExportiert\nBezahlt\nManuelle Pruefung\nErledigt\nStorniert",
+   "options": "Entwurf\nGeprueft\nExportiert\nBezahlt\nManuelle Pruefung\nErledigt\nRueckbelastet\nStorniert",
    "read_only": 1
   },
   {
@@ -250,6 +260,80 @@
    "search_index": 1
   },
   {
+   "depends_on": "return_bank_transaction",
+   "fieldname": "return_section",
+   "fieldtype": "Section Break",
+   "label": "Ruecklastschrift"
+  },
+  {
+   "fieldname": "return_bank_transaction",
+   "fieldtype": "Link",
+   "label": "Ruecklastschrift (Bankumsatz)",
+   "no_copy": 1,
+   "options": "Bank Transaction",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "return_journal_entry",
+   "fieldtype": "Link",
+   "label": "Gegenbuchung",
+   "no_copy": 1,
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_principal_amount",
+   "fieldtype": "Currency",
+   "label": "Hauptbetrag",
+   "no_copy": 1,
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_fee_amount",
+   "fieldtype": "Currency",
+   "label": "Gebuehr",
+   "no_copy": 1,
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_reason_code",
+   "fieldtype": "Data",
+   "label": "Rueckgabegrund (Code)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_reason_text",
+   "fieldtype": "Small Text",
+   "label": "Rueckgabegrund",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Erneut einziehen: neue Faelligkeit und neue Vorabankuendigung. Ueberweisung: Die Zeile wartet auf eine Ueberweisung.",
+   "fieldname": "return_decision",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Entscheidung",
+   "no_copy": 1,
+   "options": "\nErneut einziehen\nUeberweisung",
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_decision_note",
+   "fieldtype": "Small Text",
+   "label": "Entscheidungsvermerk",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "processing_section",
    "fieldtype": "Section Break",
    "label": "Pruefung"
@@ -310,7 +394,7 @@
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-11-02 23:00:00.000000",
+ "modified": "2026-11-03 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Einzugsposition",

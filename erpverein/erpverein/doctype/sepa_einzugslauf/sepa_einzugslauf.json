@@ -40,6 +40,7 @@
   "settlement_section",
   "settlement_bank_transaction",
   "settled_at",
+  "closed_at",
   "settlement_column_break",
   "settlement_note",
   "bank_section",
@@ -63,7 +64,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Entwurf\nGeprueft\nExportiert\nBankreferenz erfasst\nBankgutschrift erkannt\nAbgestimmt\nManuelle Pruefung\nStorniert",
+   "options": "Entwurf\nGeprueft\nExportiert\nBankreferenz erfasst\nBankgutschrift erkannt\nAbgestimmt\nTeilweise zurueckbelastet\nAbgeschlossen\nManuelle Pruefung\nStorniert",
    "read_only": 1
   },
   {
@@ -268,6 +269,14 @@
    "read_only": 1
   },
   {
+   "description": "Acht Wochen nach dem Einzugsdatum, wenn jede Position bezahlt, erledigt oder zurueckbelastet mit Entscheidung ist.",
+   "fieldname": "closed_at",
+   "fieldtype": "Datetime",
+   "label": "Abgeschlossen am",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "settlement_column_break",
    "fieldtype": "Column Break"
   },
@@ -322,7 +331,7 @@
    "link_fieldname": "collection_run"
   }
  ],
- "modified": "2026-11-02 18:00:00.000000",
+ "modified": "2026-11-03 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "ERPverein",
  "name": "SEPA Einzugslauf",

@@ -448,6 +448,82 @@ def update_submitted_schedule(invoice: str, rows, modified: str | None = None) -
     return {"invoice": doc.name, "prenotification_status": doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME)}
 
 
+def change_schedule_row(invoice: str, payment_term: str, *, due_date=None, mode_of_payment=None, comment: str) -> dict:
+    """Change due date or mode of payment of one row with the checks of 'Zahlungsplan bearbeiten' (spec 31.3)."""
+    doc = get_submitted_managed_invoice(invoice)
+    if not any(row.payment_term == payment_term for row in doc.payment_schedule):
+        frappe.throw(_("Die Rechnung {0} hat keine Zeile mit der Zahlungsbedingung {1}.").format(invoice, payment_term))
+    rows = []
+    for row in doc.payment_schedule:
+        target = row.payment_term == payment_term
+        rows.append(
+            {
+                "name": row.name,
+                "due_date": (due_date if target and due_date else row.due_date),
+                "payment_amount": row.payment_amount,
+                "mode_of_payment": (mode_of_payment if target and mode_of_payment else row.mode_of_payment),
+            }
+        )
+    direct_debit_changed = apply_editor_rows(doc, normalize_editor_rows(rows), get_locked_rows(doc))
+    context = get_billing_context(doc)
+    if mode_of_payment == MODE_OF_PAYMENT_TRANSFER and not context.mandate:
+        # A switch to transfer only removes direct debit, also after the mandate ended. Unchanged direct debit rows
+        # keep the invoice's mandate; the collection preview reports it as inactive (spec 37.6).
+        mandate = doc.get(SALES_INVOICE_SEPA_MANDATE_FIELDNAME) if has_direct_debit_rows(doc) else None
+    else:
+        mandate = require_mandate_for_direct_debit(doc, context)
+    finalize_submitted_schedule(
+        doc,
+        origin=ORIGIN_EDITED,
+        mandate=mandate,
+        note=None,
+        direct_debit_changed=direct_debit_changed,
+        comment=comment,
+    )
+    return {"invoice": doc.name, "prenotification_status": doc.get(SALES_INVOICE_PRENOTIFICATION_STATUS_FIELDNAME)}
+
+
+def adjust_row_payment(invoice: str, payment_term: str, amount: float) -> None:
+    """Book a return on the payment schedule row like ERPNext books a payment (spec 31.6).
+
+    A negative amount takes a payment back (journal entry of a return submitted), a positive one restores it
+    (journal entry cancelled). ERPNext changes rows only for Payment Entry (Phase 0, P5)."""
+    frappe.has_permission("Sales Invoice", "write", doc=invoice, throw=True)
+    row = frappe.db.get_value(
+        "Payment Schedule",
+        {"parenttype": "Sales Invoice", "parent": invoice, "payment_term": payment_term},
+        ["name", "paid_amount", "outstanding"],
+        as_dict=True,
+        for_update=True,
+    )
+    if not row:
+        frappe.throw(_("Die Rechnung {0} hat keine Zeile mit der Zahlungsbedingung {1}.").format(invoice, payment_term))
+    amount = flt(amount, 2)
+    if amount < 0 and flt(row.paid_amount) + AMOUNT_TOLERANCE < -amount:
+        frappe.throw(
+            _("Die Zahlungsplanzeile {0} der Rechnung {1} ist nicht bezahlt. ERPverein oeffnet sie nicht.").format(
+                payment_term, invoice
+            )
+        )
+    if amount > 0 and flt(row.outstanding) + AMOUNT_TOLERANCE < amount:
+        frappe.throw(
+            _(
+                "Die Zahlungsplanzeile {0} der Rechnung {1} ist inzwischen anders bezahlt oder eingezogen. "
+                "Storniere zuerst die neue Zahlung."
+            ).format(payment_term, invoice)
+        )
+    base_amount = flt(amount * (flt(frappe.db.get_value("Sales Invoice", invoice, "conversion_rate")) or 1), 2)
+    schedule = frappe.qb.DocType("Payment Schedule")
+    (
+        frappe.qb.update(schedule)
+        .set(schedule.paid_amount, schedule.paid_amount + amount)
+        .set(schedule.base_paid_amount, schedule.base_paid_amount + base_amount)
+        .set(schedule.outstanding, schedule.outstanding - amount)
+        .set(schedule.base_outstanding, schedule.base_outstanding - base_amount)
+        .where(schedule.name == row.name)
+    ).run()
+
+
 def get_submitted_managed_invoice(invoice: str, modified: str | None = None):
     doc = frappe.get_doc("Sales Invoice", invoice)
     doc.check_permission("write")

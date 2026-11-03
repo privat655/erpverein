@@ -422,6 +422,53 @@ EXPECTED_CUSTOM_FIELDS = {
 			"unique": 1,
 		},
 	],
+	"Journal Entry": [
+		{
+			"fieldname": "erpverein_sepa_collection_item",
+			"label": "SEPA-Einzugsposition",
+			"fieldtype": "Link",
+			"options": "SEPA Einzugsposition",
+			"insert_after": "clearance_date",
+			"description": "Einzugsposition, deren Ruecklastschrift ERPverein mit diesem Buchungssatz gebucht hat.",
+			"no_copy": 1,
+			"read_only": 1,
+			"unique": 1,
+		},
+		{
+			"fieldname": "erpverein_return_bank_transaction",
+			"label": "ERPverein Ruecklastschrift (Bankumsatz)",
+			"fieldtype": "Link",
+			"options": "Bank Transaction",
+			"insert_after": "erpverein_sepa_collection_item",
+			"no_copy": 1,
+			"read_only": 1,
+			"unique": 1,
+		},
+		{
+			"fieldname": "erpverein_return_principal_amount",
+			"label": "ERPverein Hauptbetrag der Ruecklastschrift",
+			"fieldtype": "Currency",
+			"insert_after": "erpverein_return_bank_transaction",
+			"no_copy": 1,
+			"read_only": 1,
+		},
+		{
+			"fieldname": "erpverein_return_fee_amount",
+			"label": "ERPverein Gebuehr der Ruecklastschrift",
+			"fieldtype": "Currency",
+			"insert_after": "erpverein_return_principal_amount",
+			"no_copy": 1,
+			"read_only": 1,
+		},
+		{
+			"fieldname": "erpverein_return_reason_code",
+			"label": "ERPverein Rueckgabegrund",
+			"fieldtype": "Data",
+			"insert_after": "erpverein_return_fee_amount",
+			"no_copy": 1,
+			"read_only": 1,
+		},
+	],
 }
 
 

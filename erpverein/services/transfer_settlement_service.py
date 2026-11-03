@@ -20,6 +20,7 @@ from erpverein.services.billing_common import stable_hash
 from erpverein.services.payment_schedule_service import AMOUNT_TOLERANCE
 from erpverein.services.sepa_collection_service import (
     POSITION_DOCTYPE,
+    POSITION_STATUS_RETURNED,
     has_accounts_role,
     require_reason,
 )
@@ -144,6 +145,7 @@ class TransferContext:
         ):
             schedules.setdefault(item.parent, []).append(item)
         blocking = {}
+        waiting = {}
         for position in frappe.get_list(
             POSITION_DOCTYPE,
             filters={
@@ -151,13 +153,17 @@ class TransferContext:
                 "active_key": ["is", "set"],
                 "status": ["not in", SETTLED_POSITION_STATUSES],
             },
-            fields=["name", "sales_invoice"],
+            fields=["name", "sales_invoice", "status"],
             order_by="name asc",
             limit_page_length=0,
         ):
-            blocking.setdefault(position.sales_invoice, []).append(position.name)
+            # A returned position without decision keeps its row; the transfer waits for the treasurer.
+            target = waiting if position.status == POSITION_STATUS_RETURNED else blocking
+            target.setdefault(position.sales_invoice, []).append(position.name)
         for row in rows:
-            self.invoices[row.name] = to_invoice(row, schedules.get(row.name, []), blocking.get(row.name, []))
+            self.invoices[row.name] = to_invoice(
+                row, schedules.get(row.name, []), blocking.get(row.name, []), waiting.get(row.name, [])
+            )
             self.details[row.name] = row
 
     def customer_invoices(self, customer: str) -> tuple[Invoice, ...]:
@@ -253,7 +259,7 @@ def current_amendment(number: str) -> str:
     return name
 
 
-def to_invoice(row, schedule: list, blocking: list) -> Invoice:
+def to_invoice(row, schedule: list, blocking: list, waiting: list = ()) -> Invoice:
     from erpnext.accounts.doctype.dunning.dunning import get_payment_schedule_outstanding
 
     # Payments without payment term reduce the oldest rows first, like the ERPNext dunning (spec 31.5).
@@ -276,6 +282,7 @@ def to_invoice(row, schedule: list, blocking: list) -> Invoice:
             for item in schedule
         ),
         blocking_positions=tuple(blocking),
+        waiting_returns=tuple(waiting),
         created_on=getdate(row.creation) if row.get("creation") else None,
     )
 

@@ -13,6 +13,8 @@ frappe.ui.form.on("SEPA Einzugsposition", {
             );
         } else if (frm.doc.status === "Erledigt") {
             frm.dashboard.set_headline_alert(frappe.utils.escape_html(frm.doc.resolution_note || ""), "green");
+        } else if (frm.doc.status === "Rueckbelastet") {
+            erpverein_show_return(frm);
         }
         if (!["Entwurf", "Geprueft"].includes(frm.doc.status)) {
             return;
@@ -65,5 +67,76 @@ function erpverein_mark_position_done(frm) {
         },
         __("Als erledigt markieren"),
         __("Erledigt"),
+    );
+}
+
+function erpverein_show_return(frm) {
+    if (frm.doc.return_decision) {
+        frm.dashboard.set_headline_alert(
+            `${__("Zurückbelastet.")} ${frappe.utils.escape_html(frm.doc.return_decision_note || "")}`,
+            "blue",
+        );
+        return;
+    }
+    frm.dashboard.set_headline_alert(
+        __(
+            "Zurückbelastet. Entscheide: erneut einziehen oder auf Überweisung umstellen. Bis dahin bleibt die Zahlungsplanzeile gesperrt.",
+        ),
+        "orange",
+    );
+    frm.add_custom_button(
+        __("Erneut einziehen"),
+        () => erpverein_decide_return(frm, "Erneut einziehen"),
+        __("Rücklastschrift"),
+    );
+    frm.add_custom_button(
+        __("Auf Überweisung umstellen"),
+        () => erpverein_decide_return(frm, "Ueberweisung"),
+        __("Rücklastschrift"),
+    );
+}
+
+function erpverein_decide_return(frm, decision) {
+    const recollect = decision === "Erneut einziehen";
+    const hint = recollect
+        ? __(
+              "Wähle eine neue Fälligkeit. ERPverein zieht die Zeile nicht von selbst ein: Sende die Rechnung danach erneut per E-Mail (neue Vorabankündigung, bei Mieten nicht nötig). Der nächste Einzugslauf nach der Frist nimmt die Zeile auf. Prüfe vorher den Rückgabegrund, zum Beispiel ein aufgelöstes Konto.",
+          )
+        : __(
+              "Die Zeile bekommt die Zahlungsweise Überweisung. ERPverein bucht eine passende Überweisung dann automatisch. Sende die Rechnung erneut, damit der Zahler den offenen Betrag kennt.",
+          );
+    frappe.prompt(
+        [
+            { fieldtype: "HTML", fieldname: "hint", options: `<p>${hint}</p>` },
+            {
+                fieldtype: "Date",
+                fieldname: "due_date",
+                label: recollect ? __("Neue Fälligkeit") : __("Neue Fälligkeit (optional)"),
+                reqd: recollect ? 1 : 0,
+            },
+            { fieldtype: "Small Text", fieldname: "note", label: __("Notiz (optional)") },
+        ],
+        (values) => {
+            frappe.call({
+                method: "erpverein.api.sepa_collection.decide_return",
+                args: { position: frm.doc.name, decision, due_date: values.due_date, note: values.note },
+                freeze: true,
+                callback(r) {
+                    if (r.exc || !r.message) {
+                        return;
+                    }
+                    if (r.message.prenotification_status === "Erneut senden") {
+                        frappe.msgprint(
+                            __("Sende die Rechnung {0} jetzt erneut per E-Mail. Sie ist die neue Vorabankündigung.", [
+                                r.message.invoice,
+                            ]),
+                        );
+                    }
+                    frm.reload_doc();
+                },
+            });
+        },
+        recollect ? __("Erneut einziehen") : __("Auf Überweisung umstellen"),
+        __("Entscheiden"),
     );
 }

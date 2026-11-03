@@ -8,6 +8,7 @@ TEST_COMPANY = "_Test Company 2"
 SYNTHETIC_CREDITOR_ID = "DE98ZZZ09999999999"
 NEXT_YEAR = getdate(nowdate()).year + 1
 BANK_ACCOUNT_NAME = "ERPverein Vereinskonto Test"
+FEE_ACCOUNT_NAME = "ERPverein Nebenkosten des Geldverkehrs Test"
 
 
 def ensure_export_profile(company: str = TEST_COMPANY, **overrides):
@@ -77,6 +78,30 @@ def make_company_bank_account(company: str = TEST_COMPANY) -> str:
                 "account": account,
                 "iban": make_german_iban(),
                 "branch_code": "COBADEFFXXX",
+            }
+        )
+        .insert(ignore_permissions=True)
+        .name
+    )
+
+
+def make_fee_account(company: str = TEST_COMPANY) -> str:
+    """Expense account for return fees, like 68550 "Nebenkosten des Geldverkehrs" on the site."""
+    account = frappe.db.get_value(
+        "Account", {"company": company, "account_name": FEE_ACCOUNT_NAME, "is_group": 0}, "name"
+    )
+    if account:
+        return account
+    parent = frappe.db.get_value("Account", {"company": company, "is_group": 1, "root_type": "Expense"}, "name")
+    return (
+        frappe.get_doc(
+            {
+                "doctype": "Account",
+                "account_name": FEE_ACCOUNT_NAME,
+                "parent_account": parent,
+                "company": company,
+                "account_currency": frappe.db.get_value("Company", company, "default_currency"),
+                "is_group": 0,
             }
         )
         .insert(ignore_permissions=True)

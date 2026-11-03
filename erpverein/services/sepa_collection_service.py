@@ -44,6 +44,10 @@ RUN_STATUS_EXPORTED = "Exportiert"
 RUN_STATUS_BANK_REFERENCE = "Bankreferenz erfasst"
 RUN_STATUS_CREDIT_RECOGNIZED = "Bankgutschrift erkannt"
 RUN_STATUS_SETTLED = "Abgestimmt"
+# At least one position came back; every other position is paid or done (Phase 6).
+RUN_STATUS_PARTLY_RETURNED = "Teilweise zurueckbelastet"
+# Settled, the refund period of 8 weeks is over and every return has a decision (spec 37.5).
+RUN_STATUS_CLOSED = "Abgeschlossen"
 RUN_STATUS_REVIEW = "Manuelle Pruefung"
 RUN_STATUS_CANCELLED = "Storniert"
 POSITION_STATUS_DRAFT = "Entwurf"
@@ -53,7 +57,13 @@ POSITION_STATUS_PAID = "Bezahlt"
 POSITION_STATUS_REVIEW = "Manuelle Pruefung"
 # The treasurer closed a review case in the banking area; ERPverein books nothing more for this position.
 POSITION_STATUS_DONE = "Erledigt"
+# The bank returned the collection; a journal entry opened the invoice again and the original payment stays (E8).
+POSITION_STATUS_RETURNED = "Rueckbelastet"
 POSITION_STATUS_CANCELLED = "Storniert"
+# The treasurer decides per returned position; until then its payment schedule row stays locked (Phase 6).
+RETURN_DECISION_RECOLLECT = "Erneut einziehen"
+RETURN_DECISION_TRANSFER = "Ueberweisung"
+RETURN_DECISIONS = (RETURN_DECISION_RECOLLECT, RETURN_DECISION_TRANSFER)
 OPEN_RUN_STATUSES = {RUN_STATUS_DRAFT, RUN_STATUS_CHECKED}
 EXPORTED_RUN_STATUSES = {RUN_STATUS_EXPORTED, RUN_STATUS_BANK_REFERENCE}
 # After the export a run waits for its bank credit; these statuses still allow a settlement (Phase 4).
@@ -309,13 +319,14 @@ def evaluate_invoice_rows(invoice, profile, go_live, cutoff, earliest, cache) ->
             "status": ROW_READY,
             "reason": None,
         }
-        existing = frappe.db.get_value(POSITION_DOCTYPE, {"active_key": key}, "name")
+        existing = frappe.db.get_value(POSITION_DOCTYPE, {"active_key": key}, ["name", "status"], as_dict=True)
         if existing:
-            item.update(
-                position=existing,
-                status=ROW_EXISTING,
-                reason=_("Die Einzugsposition {0} existiert schon.").format(existing),
-            )
+            reason = _("Die Einzugsposition {0} existiert schon.").format(existing.name)
+            if existing.status == POSITION_STATUS_RETURNED:
+                reason = _(
+                    "Die Einzugsposition {0} ist zurueckbelastet. Entscheide dort: erneut einziehen oder Ueberweisung."
+                ).format(existing.name)
+            item.update(position=existing.name, status=ROW_EXISTING, reason=reason)
         else:
             reason = invoice_reason or get_row_reason(invoice, row, context, profile, collection_date, amount)
             if reason:
@@ -564,10 +575,22 @@ def get_active_position_docs(run_name: str) -> list:
     return [frappe.get_doc(POSITION_DOCTYPE, name) for name in names]
 
 
+def get_run_position_docs(run_name: str) -> list:
+    """Every position of the run except cancelled ones; a returned position stays part of the run and its file."""
+    names = frappe.get_all(
+        POSITION_DOCTYPE,
+        filters={"collection_run": run_name, "status": ["!=", POSITION_STATUS_CANCELLED]},
+        pluck="name",
+        order_by="name asc",
+    )
+    return [frappe.get_doc(POSITION_DOCTYPE, name) for name in names]
+
+
 def save_run_totals(run) -> None:
+    # Totals follow the exported file: a returned position whose row is free again still counts.
     positions = frappe.get_all(
         POSITION_DOCTYPE,
-        filters={"collection_run": run.name, "active_key": ["is", "set"]},
+        filters={"collection_run": run.name, "status": ["!=", POSITION_STATUS_CANCELLED]},
         fields=["amount", "processing_error"],
     )
     run.position_count = len(positions)
@@ -703,9 +726,9 @@ def cancel_collection_run(run_name: str, reason: str | None = None, confirm_not_
     run = get_locked_run(run_name)
     if run.status == RUN_STATUS_CANCELLED:
         frappe.throw(_("Der Einzugslauf ist bereits storniert."))
-    positions = get_active_position_docs(run.name)
+    positions = get_run_position_docs(run.name)
     if (
-        run.status in {RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_SETTLED}
+        run.status in {RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_SETTLED, RUN_STATUS_PARTLY_RETURNED, RUN_STATUS_CLOSED}
         or run.settlement_bank_transaction
         or any(position.payment_entry or position.settlement_bank_transaction for position in positions)
     ):
@@ -790,9 +813,16 @@ def validate_collection_run(doc) -> None:
         frappe.throw(_("Diese Felder aendert nur ERPverein: {0}").format(", ".join(changed)))
 
 
+def is_active_position(doc) -> bool:
+    # A returned position keeps its row locked until the treasurer decides; ERPverein never collects again by itself.
+    if doc.status == POSITION_STATUS_RETURNED:
+        return not doc.get("return_decision")
+    return doc.status not in INACTIVE_POSITION_STATUSES
+
+
 def validate_collection_position(doc) -> None:
     doc.end_to_end_reference = doc.end_to_end_reference or doc.name
-    doc.active_key = None if doc.status in INACTIVE_POSITION_STATUSES else doc.generation_key
+    doc.active_key = doc.generation_key if is_active_position(doc) else None
     previous = doc.get_doc_before_save()
     if doc.flags.get(UPDATE_FLAG):
         if previous and previous.end_to_end_reference != doc.end_to_end_reference:

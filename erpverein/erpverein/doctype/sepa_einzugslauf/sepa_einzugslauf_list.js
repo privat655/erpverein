@@ -9,6 +9,8 @@ frappe.listview_settings["SEPA Einzugslauf"] = {
             "Bankreferenz erfasst": "cyan",
             "Bankgutschrift erkannt": "yellow",
             Abgestimmt: "green",
+            "Teilweise zurueckbelastet": "orange",
+            Abgeschlossen: "darkgrey",
             "Manuelle Pruefung": "red",
             Storniert: "gray",
         };

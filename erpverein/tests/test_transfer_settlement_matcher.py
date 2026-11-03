@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -314,6 +315,16 @@ class TestTransferSettlementMatcher(UnitTestCase):
             self.assertEqual(decision.action, ACTION_REVIEW)
             self.assertIn("SEPA-POS-2027-0000001", decision.reason)
             self.assertIn("doppelter Einzug", decision.reason)
+
+    def test_transfer_waits_for_the_decision_about_a_returned_position(self):
+        bill = invoice("ACC-SINV-2027-00091", "Kunde A", "175.00")
+        waiting = replace(bill, waiting_returns=("SEPA-POS-2027-0000002",))
+
+        decision = decide_transfer(credit("175.00", "ACC-SINV-2027-00091"), facts(waiting))
+
+        self.assertEqual(decision.action, ACTION_OPEN)
+        self.assertIn("SEPA-POS-2027-0000002", decision.reason)
+        self.assertEqual(allocations(decision), [("Kunde A", "ACC-SINV-2027-00091", RATE_1, "175.00")])
 
     def test_matched_rule_turns_a_booking_into_a_suggestion(self):
         data = facts(invoice("ACC-SINV-2027-00012", "Kunde A", "175.00"))

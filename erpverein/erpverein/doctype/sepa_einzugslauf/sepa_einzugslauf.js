@@ -36,7 +36,12 @@ frappe.ui.form.on("SEPA Einzugslauf", {
                 }),
             );
         }
-        if (!["Storniert", "Bankgutschrift erkannt", "Abgestimmt"].includes(status) && !frm.doc.settlement_bank_transaction) {
+        if (
+            !["Storniert", "Bankgutschrift erkannt", "Abgestimmt", "Teilweise zurueckbelastet", "Abgeschlossen"].includes(
+                status,
+            ) &&
+            !frm.doc.settlement_bank_transaction
+        ) {
             frm.add_custom_button(__("Lauf stornieren"), () => erpverein_cancel_collection_run(frm));
         }
         erpverein_show_settlement_status(frm);
@@ -61,6 +66,20 @@ function erpverein_show_settlement_status(frm) {
         frm.dashboard.set_headline_alert(
             `${__("Manuelle Prüfung.")} ${frappe.utils.escape_html(frm.doc.settlement_note || "")}`,
             "red",
+        );
+    } else if (status === "Teilweise zurueckbelastet") {
+        frm.dashboard.set_headline_alert(
+            __(
+                "Mindestens eine Lastschrift kam zurück. Die Gegenbuchung ist gebucht. Öffne die Position und entscheide: erneut einziehen oder auf Überweisung umstellen.",
+            ),
+            "orange",
+        );
+    } else if (status === "Abgeschlossen") {
+        frm.dashboard.set_headline_alert(
+            __("Abgeschlossen am {0}. Die Erstattungsfrist von 8 Wochen ist vorbei.", [
+                frappe.datetime.str_to_user(frm.doc.closed_at),
+            ]),
+            "green",
         );
     }
 }

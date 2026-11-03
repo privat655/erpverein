@@ -85,6 +85,8 @@ class Invoice:
     blocking_positions: tuple[str, ...] = ()
     # Day the invoice was created; money that came before cannot answer it.
     created_on: date | None = None
+    # Returned positions without the treasurer's decision: a transfer waits for it (Phase 6).
+    waiting_returns: tuple[str, ...] = ()
 
     @property
     def is_open(self) -> bool:
@@ -477,6 +479,9 @@ def finish(
         if invoice.name in used
         for position in invoice.blocking_positions
     ]
+    waiting = [
+        (invoice.name, position) for invoice in invoices if invoice.name in used for position in invoice.waiting_returns
+    ]
     if not allocations:
         decision.action = ACTION_REVIEW
         decision.reason = (
@@ -488,6 +493,13 @@ def finish(
         decision.reason = (
             f"Die Rechnung {invoice} hat die aktive Einzugsposition {position}. ERPverein bucht die Ueberweisung "
             "nicht, sonst droht ein doppelter Einzug."
+        )
+    elif waiting:
+        invoice, position = waiting[0]
+        decision.action = ACTION_OPEN
+        decision.reason = (
+            f"Die Rechnung {invoice} wartet auf deine Entscheidung zur Ruecklastschrift der Position {position}. "
+            f"ERPverein bucht die Ueberweisung erst danach. {RECHECK_HINT}"
         )
     elif partial_direct_debit:
         decision.action = ACTION_REVIEW

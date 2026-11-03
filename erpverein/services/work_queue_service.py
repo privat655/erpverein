@@ -27,6 +27,7 @@ from erpverein.services.prenotification_service import get_prenotification_readi
 from erpverein.services.sepa_collection_service import (
     EXPORTED_RUN_STATUSES,
     POSITION_DOCTYPE,
+    POSITION_STATUS_RETURNED,
     POSITION_STATUS_REVIEW,
     PROFILE_DOCTYPE,
     RUN_DOCTYPE,
@@ -148,7 +149,14 @@ def bank_transaction_case(row) -> dict:
         reason, action = note, _("Bankumsatz oeffnen: Vorschlag pruefen, dann bestaetigen oder verwerfen.")
     elif status == "Manuelle Pruefung":
         reason = note or _("Manuelle Pruefung.")
-        action = _("Im Banking-Bereich klaeren: Zahlung zuordnen, Rest buchen oder zurueckzahlen.")
+        # Only the return step sends a debit to manual review (Phase 6).
+        if flt(row.withdrawal) > 0:
+            action = _(
+                "Gehoert die Belastung zu einer bezahlten Einzugsposition: im Bankumsatz 'Ruecklastschrift zuordnen'. "
+                "Sonst im Banking-Bereich als Gegenbuchung erfassen: Soll Kunde mit Rechnung, Soll Gebuehr, Haben Bank."
+            )
+        else:
+            action = _("Im Banking-Bereich klaeren: Zahlung zuordnen, Rest buchen oder zurueckzahlen.")
     elif status == "Abgeglichen":
         reason = _(
             "ERPverein hatte den Bankumsatz abgeglichen. Er ist wieder offen (Abgleich aufgehoben oder storniert)."
@@ -187,7 +195,10 @@ def open_case_action(row) -> str:
             row.matched_transaction_rule
         )
     if category in RETURN_CATEGORIES:
-        return _("Ruecklastschrift im Banking-Bereich als Gegenbuchung erfassen.")
+        return _(
+            "ERPverein bucht die Ruecklastschrift, sobald die Zahlung der Einzugsposition gebucht ist. "
+            "Passt keine Position, im Banking-Bereich als Gegenbuchung erfassen."
+        )
     if category == CATEGORY_BANK_FEE:
         return _("Im Banking-Bereich buchen. Fuer wiederkehrende Gebuehren eine Bank Transaction Rule anlegen.")
     if flt(row.deposit) > 0:
@@ -262,13 +273,17 @@ def run_cases(company, days_ahead) -> list[dict]:
 
 
 def position_cases(company, days_ahead) -> list[dict]:
+    from erpverein.services.sepa_return_service import describe_return
+
     filters = {"status": POSITION_STATUS_REVIEW}
+    # A returned position waits for the treasurer's decision; its row stays locked until then (Phase 6).
+    returned = {"status": POSITION_STATUS_RETURNED, "active_key": ["is", "set"]}
     runs = company_runs(company)
     if runs is not None:
         if not runs:
             return []
-        filters["collection_run"] = ["in", runs]
-    return [
+        filters["collection_run"] = returned["collection_run"] = ["in", runs]
+    rows = [
         case(
             AREA_POSITION,
             position.collection_date,
@@ -288,6 +303,41 @@ def position_cases(company, days_ahead) -> list[dict]:
             limit_page_length=0,
         )
     ]
+    rows += [
+        case(
+            AREA_POSITION,
+            position.collection_date,
+            POSITION_DOCTYPE,
+            position.name,
+            position.return_principal_amount,
+            position.customer,
+            position.status,
+            describe_return(position),
+            _(
+                "In der Position entscheiden: 'Erneut einziehen' mit neuer Faelligkeit (Rechnung danach erneut "
+                "senden) oder 'Auf Ueberweisung umstellen'."
+            ),
+        )
+        for position in frappe.get_list(
+            POSITION_DOCTYPE,
+            filters=returned,
+            fields=[
+                "name",
+                "status",
+                "collection_date",
+                "customer",
+                "return_bank_transaction",
+                "return_journal_entry",
+                "return_principal_amount",
+                "return_fee_amount",
+                "return_reason_code",
+                "return_reason_text",
+            ],
+            order_by="collection_date asc, name asc",
+            limit_page_length=0,
+        )
+    ]
+    return rows
 
 
 def bank_import_cases(company, days_ahead) -> list[dict]:

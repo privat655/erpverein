@@ -70,10 +70,18 @@ doc_events = {
             "erpverein.services.transfer_settlement_service.handle_cancelled_transfer_payment",
         ],
     },
+    "Journal Entry": {
+        "validate": "erpverein.services.sepa_return_service.validate_journal_entry_provenance",
+        "on_submit": "erpverein.services.sepa_return_service.open_row_for_return",
+        "on_cancel": "erpverein.services.sepa_return_service.handle_cancelled_return_entry",
+    },
 }
 
 scheduler_events = {
-    "daily": ["erpverein.services.sepa_collection_schedule_service.refresh_collection_schedule_projections"],
+    "daily": [
+        "erpverein.services.sepa_collection_schedule_service.refresh_collection_schedule_projections",
+        "erpverein.services.sepa_return_service.close_settled_runs",
+    ],
     "hourly": [
         "erpverein.services.billing_job_service.reconcile_stale_billing_jobs",
         "erpverein.services.prenotification_service.refresh_prenotification_status",

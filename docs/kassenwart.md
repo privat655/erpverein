@@ -1,6 +1,6 @@
 # Anleitung für den Kassenwart
 
-Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug, den Bankimport, den automatischen Abgleich der Sammelgutschrift, die Überweisungen der Selbstzahler und den Arbeitsvorrat. Rücklastschriften folgen mit Phase 6.
+Diese Anleitung beschreibt die Einrichtung, den Zahlungsplan, den monatlichen Lastschrifteinzug, den Bankimport, den automatischen Abgleich der Sammelgutschrift, die Überweisungen der Selbstzahler, den Arbeitsvorrat und die Rücklastschriften.
 
 Kennzeichen:
 
@@ -110,7 +110,7 @@ Wieder in ERPNext:
    - Toleranz der Sammelgutschrift: 5 Kalendertage (Abschnitt 6.2)
    - Höchstzahl Positionen je Datei: 1000
    - Vorlage für den Verwendungszweck: `Rechnung {invoice}` oder zum Beispiel `Beitrag {period_from} bis {period_to} Rechnung {invoice}`
-   - Gebührenkonto: 68550
+   - Gebührenkonto: 68550. ERPverein bucht darauf die Gebühren von Rücklastschriften (Abschnitt 9). Ohne Gebührenkonto geht jede Rücklastschrift mit Gebühr in die manuelle Prüfung.
 2. Prüfe die Warnungen oben im Formular. Sie zeigen abweichende `Accounts Settings`.
 3. Ändere die Einstellung für Mieten nur vor dem ersten Mieteinzug. Vorhandene Mietrechnungen behalten sonst ihren alten Status.
 
@@ -348,7 +348,7 @@ Eine Rechnung mit einer aktiven Einzugsposition lässt sich nicht stornieren. Ih
 1. Bankumsätze kommen seit Phase 3 über n8n nach ERPNext (Abschnitt 5).
 2. Seit Phase 4 bucht ERPverein die Zahlungen zur Sammelgutschrift und markiert die Rechnungen als bezahlt (Abschnitt 6).
 3. Seit Phase 5 bucht ERPverein Überweisungen von Selbstzahlern mit sicherem Signal (Abschnitt 7). Alle offenen Fälle zeigt der Arbeitsvorrat (Abschnitt 8).
-4. Rücklastschriften buchst du bis Phase 6 im Banking-Bereich `/banking`.
+4. Seit Phase 6 bucht ERPverein Rücklastschriften und Rejects mit Gegenbuchung und Gebühr (Abschnitt 9). Nach einer Rückgabe entscheidest du je Position, wie es weitergeht.
 
 ---
 
@@ -524,8 +524,7 @@ Der Standardexport von AqBanking enthält nur Datum, Betrag, Konto, Name, IBAN u
 ### 5.11 Was noch fehlt
 
 1. Erledigt mit Phase 5: Überweisungen von Selbstzahlern (Abschnitt 7) und der Arbeitsvorrat (Abschnitt 8).
-2. Phase 6: ERPverein bucht Rücklastschriften mit Gegenbuchung und Gebühr.
-3. Bis dahin gleichst du Rücklastschriften im Banking-Bereich `/banking` von Hand ab.
+2. Erledigt mit Phase 6: ERPverein bucht Rücklastschriften mit Gegenbuchung und Gebühr (Abschnitt 9).
 
 ---
 
@@ -644,7 +643,7 @@ Nutze diese Aktion nur für eine Position in „Manuelle Pruefung“, deren Fall
 5. ERPverein setzt die Position auf „Erledigt“. Das Feld „Erledigt-Vermerk“ bekommt Benutzer, Datum, deinen Text und das bisherige Prüfergebnis. Das Feld „Pruefergebnis“ ist danach leer. ERPverein kommentiert Position und Lauf.
 6. Sind alle Positionen bezahlt oder erledigt und ist jeder Bankumsatz abgeglichen, geht der Lauf auf „Abgestimmt“.
 
-**VORSICHT:** ERPverein bucht für eine erledigte Position nichts mehr. Die Zahlungsplanzeile bleibt für einen neuen Einzug gesperrt. Fehlt das Geld noch, kläre den Fall vorher (Rücklastschriften: Phase 6).
+**VORSICHT:** ERPverein bucht für eine erledigte Position nichts mehr. Die Zahlungsplanzeile bleibt für einen neuen Einzug gesperrt. Fehlt das Geld noch, kläre den Fall vorher. Rücklastschriften bucht ERPverein selbst (Abschnitt 9).
 
 ---
 
@@ -699,6 +698,8 @@ ERPverein bucht nur mit einem sicheren Signal. Die Signale gelten in dieser Reih
 1. Prüfe, ob die Bank die Lastschrift schon ausgeführt hat.
 2. Ist der Lauf noch nicht bei der Bank: Storniere die Position (3.8). Buche die Überweisung danach im Banking-Bereich.
 3. Ist die Lastschrift schon ausgeführt: Zahle die Überweisung zurück.
+
+**HINWEIS:** Kam die Lastschrift zurück und du hast noch nicht entschieden (9.5), wartet die Überweisung. Der Bankumsatz bleibt „Offen“ und nennt die Position. Entscheidest du „Auf Überweisung umstellen“, bucht ERPverein die Überweisung beim nächsten Abgleich.
 
 ### 7.5 Vorschläge bestätigen oder verwerfen
 
@@ -762,9 +763,9 @@ Der Arbeitsvorrat zeigt jeden offenen Fall an einer Stelle: mit Bereich, Datum, 
 
 | Bereich | Wann ein Fall entsteht | Nächste Aktion |
 |---|---|---|
-| Bankumsatz | Der Bankumsatz ist nicht vollständig abgeglichen: „Offen“, „Vorschlag“, „Manuelle Pruefung“ oder ein aufgehobener Abgleich | Vorschlag bestätigen (7.5) oder im Banking-Bereich zuordnen. Gebühren: `Bank Transaction Rule` anlegen. |
+| Bankumsatz | Der Bankumsatz ist nicht vollständig abgeglichen: „Offen“, „Vorschlag“, „Manuelle Pruefung“ oder ein aufgehobener Abgleich | Vorschlag bestätigen (7.5) oder im Banking-Bereich zuordnen. Gebühren: `Bank Transaction Rule` anlegen. Rücklastschrift in „Manuelle Pruefung“: „Rücklastschrift zuordnen“ oder Gegenbuchung von Hand (9.6). |
 | Einzugslauf | Der Lauf steht auf „Manuelle Pruefung“, oder die Sammelgutschrift fehlt nach Einzugsdatum plus Toleranz | Lauf öffnen. Bei fehlender Gutschrift Umsätze abrufen oder bei der Bank nachfragen. |
-| Einzugsposition | Die Position steht auf „Manuelle Pruefung“ | Im Banking-Bereich klären, dann „Als erledigt markieren“ (6.8). |
+| Einzugsposition | Die Position steht auf „Manuelle Pruefung“, oder sie ist zurückbelastet und wartet auf deine Entscheidung | Im Banking-Bereich klären, dann „Als erledigt markieren“ (6.8). Bei einer Rücklastschrift: „Erneut einziehen“ oder „Auf Überweisung umstellen“ (9.5). |
 | Bankimport | Status „Teilfehler“ oder „Fehler“, oder der Abgleich ist fehlgeschlagen | Grund beheben, dann „Erneut verarbeiten“ oder „Abgleich starten“. |
 | Zahlungsplan | Die Rechnung hat einen Hinweis zum Zahlungsplan, zum Beispiel „Mandatssumme größer als Rechnungsbetrag“ | Mandat korrigieren, dann „Zahlungsplan aus Mandat neu erzeugen“, oder „Zahlungsplan bearbeiten“ (Abschnitt 2). |
 | Vorabankündigung | Eine Lastschriftzeile ohne Einzugsposition ist in den nächsten Tagen fällig (Filter „Vorabankündigung: Tage voraus“, Standard 45). Die Vorabankündigung fehlt oder kommt zu spät. | Rechnung bis zum genannten Tag per E-Mail senden oder die Vorabankündigung manuell bestätigen (2.5). |
@@ -776,5 +777,149 @@ Der Arbeitsvorrat zeigt jeden offenen Fall an einer Stelle: mit Bereich, Datum, 
 3. Bestätige oder verwirf die Vorschläge.
 4. Kläre die übrigen Bankumsätze im Banking-Bereich. Der Knopf „Banking-Bereich öffnen“ steht oben im Bericht.
 5. Markiere geklärte Einzugspositionen als erledigt.
+6. Entscheide über zurückbelastete Positionen (9.5).
 
 **HINWEIS:** Mit dem Filter „Bereich“ zeigst du nur einen Bereich, zum Beispiel nur Vorschläge im Bereich „Bankumsatz“.
+
+---
+
+## 9. Rücklastschriften und Rejects
+
+### 9.1 Überblick
+
+Gibt die Bank eine Lastschrift zurück, belastet sie das Vereinskonto. ERPverein findet die Einzugsposition, bucht eine Gegenbuchung und öffnet die Rechnung wieder. Die ursprüngliche Zahlung bleibt bestehen.
+
+```text
+Bankimport → Abgleich im Hintergrund → Sammelgutschriften (Abschnitt 6) → Rücklastschriften → Überweisungen (Abschnitt 7)
+→ Einzugsposition gefunden: Gegenbuchung (Journal Entry) buchen und mit dem Bankumsatz abgleichen
+→ Position „Rueckbelastet“, Rechnung wieder offen, Lauf „Teilweise zurueckbelastet“
+→ du entscheidest je Position: erneut einziehen oder auf Überweisung umstellen
+```
+
+1. Ein Reject kommt bei der HVB am Tag der Sammelgutschrift als eigene Belastung. Die Gutschrift enthielt den Betrag. ERPverein bucht den Reject deshalb wie eine Rücklastschrift, meist ohne Gebühr.
+2. Die Gegenbuchung hat drei Zeilen:
+
+   | Konto | Soll | Haben |
+   |---|---|---|
+   | Forderungen (12170), Kunde der Rechnung, Referenz auf die Rechnung | Hauptbetrag | |
+   | Gebührenkonto aus dem Exportprofil (68550), Kostenstelle der Rechnung | Gebühr | |
+   | Vereinskonto (18000) | | Gesamtbelastung |
+
+3. Ohne Gebühr entfällt die mittlere Zeile.
+4. Die Gebühr trägt der Verein. Sie ändert den offenen Betrag der Rechnung nicht. ERPverein berechnet sie dem Zahler nicht weiter.
+5. ERPverein öffnet auch die Zahlungsplanzeile wieder. Sie bleibt aber gesperrt, bis du entscheidest (9.5).
+6. Der Bankimport zeigt das Ergebnis, zum Beispiel „1 Ruecklastschriften gebucht“.
+
+**VORSICHT:** Nach einer Rückgabe zieht ERPverein nie selbst erneut ein. Ein neuer Einzug braucht deine Entscheidung, eine neue Fälligkeit und bei Mitgliedern eine neue Vorabankündigung.
+
+### 9.2 So findet ERPverein die Einzugsposition
+
+ERPverein prüft jeden offenen Bankumsatz mit einer Belastung in dieser Reihenfolge:
+
+| Nr. | Signal | Regel |
+|---|---|---|
+| 1 | End-to-End-Referenz | Sie ist der Name der Einzugsposition. Sie gilt in jeder Kategorie. |
+| 2 | Mandatsreferenz | Nur bei „Ruecklastschrift“ oder „Lastschrift-Rueckgabe (Reject)“. |
+| 3 | IBAN der Gegenseite | Nur bei diesen Kategorien. Mit Mandat müssen beide passen. |
+| 4 | Betrag | Ohne End-to-End-Referenz muss die Belastung genau gleich dem Positionsbetrag plus den Gebühren aus dem Text sein. |
+| 5 | Zeitliche Nähe | Passen mehrere Positionen, zählt das nächste Einzugsdatum, höchstens 14 Tage vor der Belastung. |
+
+1. ERPverein bucht nur, wenn genau eine Position passt.
+2. Name und Betrag allein lösen nie eine Gegenbuchung aus.
+3. Rückgaben aus der Zeit vor dem Go-live finden keine Position. Vereinsmeister nutzte andere Referenzen. Buche sie im Banking-Bereich (9.6).
+
+### 9.3 Hauptbetrag und Gebühr
+
+1. Der Hauptbetrag ist der Betrag der Einzugsposition.
+2. Die Gebühr ist die Gesamtbelastung minus Hauptbetrag. Es gibt keine Obergrenze (deine Entscheidung vom 03.11.2026).
+3. Nennt der Text Gebühren („Eigengebühren“, „Fremdgebühren“, „Entgelt“), muss ihre Summe gleich der Gebühr sein. Sonst bucht ERPverein nichts.
+4. Ist die Gesamtbelastung kleiner als der Hauptbetrag, bucht ERPverein nichts.
+5. Den Rückgabegrund liest ERPverein aus dem Text, zum Beispiel „Sonstige Gründe“ (MS03), „Konto aufgelöst“ (AC04) oder „Deckung fehlt“ (AM04). Die Position zeigt Code und Text.
+
+### 9.4 Status
+
+| Objekt | Status | Bedeutung |
+|---|---|---|
+| Einzugsposition | Rueckbelastet | Gegenbuchung gebucht. Abschnitt „Ruecklastschrift“ nennt Bankumsatz, Gegenbuchung, Hauptbetrag, Gebühr und Grund. |
+| Einzugslauf | Teilweise zurueckbelastet | Mindestens eine Position kam zurück. Alle anderen sind bezahlt oder erledigt. |
+| Einzugslauf | Abgeschlossen | 8 Wochen nach dem Einzugsdatum, wenn jede Rückgabe entschieden ist. Ein täglicher Job setzt den Status. |
+| Bankumsatz | Abgeglichen | Gegenbuchung gebucht und abgeglichen. |
+| Bankumsatz | Offen | ERPverein wartet, zum Beispiel weil die Zahlung der Position noch nicht gebucht ist. Der Hinweis nennt den Grund. |
+| Bankumsatz | Manuelle Pruefung | ERPverein bucht nichts. Der Hinweis nennt den Grund. ERPverein ändert den Bankumsatz danach nicht mehr von selbst. |
+
+**HINWEIS:** Kommt nach dem Abschluss noch eine Rückgabe (zum Beispiel eine nicht autorisierte Lastschrift, bis 13 Monate), bucht ERPverein sie trotzdem. Der Lauf geht dann zurück auf „Teilweise zurueckbelastet“ und schließt nach deiner Entscheidung wieder.
+
+### 9.5 Nach der Rückgabe entscheiden
+
+Die Zahlungsplanzeile bleibt gesperrt, bis du entscheidest. Der Arbeitsvorrat zeigt jede Position ohne Entscheidung.
+
+1. Öffne die Einzugsposition, zum Beispiel aus dem Arbeitsvorrat.
+2. Lies den Rückgabegrund. Bei „Konto aufgelöst“ oder „Kein gültiges Mandat“ ziehe nicht erneut ein.
+3. Klicke „Rücklastschrift“ und wähle:
+   - **Erneut einziehen:** Gib eine neue Fälligkeit an. Sie liegt mindestens 14 Tage in der Zukunft (bei Mieten genügt der Vorlauf). ERPverein ändert die Zeile über „Zahlungsplan bearbeiten“. Die Vorabankündigung steht danach auf „Erneut senden“. Sende die Rechnung jetzt per E-Mail. Der nächste Einzugslauf nimmt die Zeile auf, wenn die Frist erfüllt ist.
+   - **Auf Überweisung umstellen:** Die Zeile bekommt die Zahlungsweise „Überweisung“, auf Wunsch mit neuer Fälligkeit. Sende die Rechnung erneut, damit der Zahler den offenen Betrag kennt. ERPverein bucht eine passende Überweisung automatisch (Abschnitt 7).
+4. Schreibe auf Wunsch eine Notiz. ERPverein speichert Entscheidung, Benutzer, Datum und Notiz an der Position und kommentiert Position, Lauf und Rechnung.
+
+**HINWEIS:** „Auf Überweisung umstellen“ geht auch, wenn du das Mandat schon widerrufen hast. Weitere Lastschriftzeilen derselben Rechnung zieht ERPverein dann nicht ein; die Vorschau nennt das inaktive Mandat. Stelle sie mit „Zahlungsplan bearbeiten“ ebenfalls auf „Überweisung“.
+
+**VORSICHT:** Die Entscheidung ist endgültig. Danach lässt sich die Gegenbuchung nicht mehr stornieren.
+
+### 9.6 Manuelle Prüfung
+
+| Grund (Anfang) | Was du tust |
+|---|---|
+| Mehrere Einzugspositionen passen | Prüfe Mandat, IBAN und Betrag. Ordne die Rücklastschrift der richtigen Position zu (siehe unten). |
+| Widerspruch bei der Gebuehr | Prüfe den Text, frage bei Bedarf bei der Bank nach. Ordne die Rücklastschrift dann der Position zu. Die Gebühr ist die Belastung minus Positionsbetrag. |
+| Keine Einzugsposition passt | Meist eine Rückgabe aus Vereinsmeister. Buche sie im Banking-Bereich von Hand. |
+| Die Belastung … ist kleiner als der Betrag | Frage bei der Bank nach. Buche dann im Banking-Bereich von Hand. |
+| Die Position … ist schon zurueckbelastet | Doppelte Rückgabe? Frage bei der Bank nach. |
+| Die Position … ist als erledigt markiert | Du hast die Position von Hand geklärt. Buche die Rückgabe von Hand. |
+| Die Gegenbuchung … wurde storniert | Siehe 9.7. |
+
+So ordnest du eine Rücklastschrift zu:
+
+1. Öffne den Bankumsatz.
+2. Klicke „ERPverein“ → „Rücklastschrift zuordnen“.
+3. Wähle die bezahlte Einzugsposition. Schreibe auf Wunsch eine Notiz.
+4. Klicke „Gegenbuchung buchen“. ERPverein bucht wie beim automatischen Abgleich (9.1) und nennt dich im Hinweis. Ist die Belastung kleiner als der Positionsbetrag oder die Position nicht bezahlt, lehnt ERPverein ab.
+5. Entscheide danach über die Position (9.5).
+
+**HINWEIS:** Fehlt eine Einrichtung, zum Beispiel das Gebührenkonto im Exportprofil oder eine Kostenstelle, bleibt der Bankumsatz „Offen“. Der Hinweis nennt den Grund, der Bankimport zählt einen Fehler. Behebe den Grund; der nächste Abgleich bucht die Rücklastschrift.
+
+So buchst du eine Gegenbuchung von Hand (nur ohne ERPverein-Position):
+
+1. Öffne im Banking-Bereich `/banking` den Bankumsatz.
+2. Lege einen Buchungssatz (`Journal Entry`, Typ „Bank Entry“) an: Soll Forderungskonto mit Kunde und Referenz auf die Rechnung (Hauptbetrag), Soll 68550 (Gebühr), Haben Vereinskonto (Gesamtbelastung).
+3. Gleiche ihn mit dem Bankumsatz ab.
+4. Öffne die Rechnung. Prüfe den Zahlungsplan. Ändere die Zeile bei Bedarf mit „Zahlungsplan bearbeiten“.
+
+**HINWEIS:** Ein Buchungssatz von Hand ändert die Zahlungsplanzeile nicht. ERPNext ändert Zeilen nur bei Zahlungen.
+
+### 9.7 Gegenbuchung stornieren
+
+Storniere eine Gegenbuchung nur, wenn ERPverein sie falsch zugeordnet hat.
+
+1. Öffne die Gegenbuchung aus der Einzugsposition.
+2. Klicke „Stornieren“. Das geht nur vor deiner Entscheidung (9.5) und nur mit den Rollen des Kassenwarts.
+3. ERPverein schließt die Zahlungsplanzeile wieder. Position und Bankumsatz gehen auf „Manuelle Pruefung“. ERPverein bucht für diese Rückgabe keine neue Gegenbuchung.
+4. Buche den Fall von Hand (9.6). Markiere die Position danach als erledigt (6.8).
+5. Mit „Berichtigen“ (Amend) legst du aus der stornierten Gegenbuchung einen eigenen Buchungssatz an. ERPverein entfernt dabei seine Felder; der neue Buchungssatz ändert die Zahlungsplanzeile nicht.
+
+### 9.8 Was du nicht tust
+
+**VORSICHT:** Storniere nie die ursprüngliche Zahlung einer zurückbelasteten Position. ERPverein lehnt das ab. Die Rechnung wäre sonst doppelt offen.
+
+**VORSICHT:** Nutze für eine echte Rücklastschrift nie „Unreconcile Payment“. Das ist nur für eine falsche Zuordnung gedacht.
+
+**VORSICHT:** Lege keine `Bank Transaction Rule` für Rücklastschriften an. Eine Regel bucht den Umsatz sonst an ERPverein vorbei.
+
+### 9.9 Test auf der Test-Site
+
+1. Setze den Go-live-Stichtag der Test-Site in die Vergangenheit (5.9).
+2. Führe einen Einzug bis „Abgestimmt“ durch (6.7). Notiere den Namen einer Einzugsposition (`SEPA-POS-…`) und ihren Betrag.
+3. Erzeuge mit dem Testwerkzeug aus dem Phasenbericht eine synthetische Rücklastschrift: Betrag plus 10,67 EUR, Datum zwei Tage nach dem Einzug, End-to-End-Referenz gleich Positionsname, Gebühren „3,00“ und „7,67“.
+4. Sende sie an ERPverein (Befehl im Phasenbericht).
+5. Prüfe: Gegenbuchung mit drei Zeilen, Bankumsatz „Reconciled“ und „Abgeglichen“, Position „Rueckbelastet“, Rechnung wieder offen, ursprüngliche Zahlung gebucht, Lauf „Teilweise zurueckbelastet“.
+6. Entscheide „Auf Überweisung umstellen“. Sende danach eine synthetische Überweisung mit der Rechnungsnummer (7.8). Prüfe: Rechnung „Paid“.
+
+**VORSICHT:** Die Test-Site enthält danach gebuchte Testbelege. Setze sie vor dem Go-live neu auf (E21).

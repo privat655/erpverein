@@ -47,6 +47,18 @@ BANK_MATCH_STATUS_OPTIONS = ("Offen", "Abgeglichen", "Vorschlag", "Manuelle Prue
 PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME = "erpverein_sepa_collection_item"
 PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME = "erpverein_bank_transaction"
 PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME = "erpverein_transfer_key"
+JOURNAL_ENTRY_COLLECTION_ITEM_FIELDNAME = "erpverein_sepa_collection_item"
+JOURNAL_ENTRY_RETURN_BANK_TRANSACTION_FIELDNAME = "erpverein_return_bank_transaction"
+JOURNAL_ENTRY_RETURN_PRINCIPAL_FIELDNAME = "erpverein_return_principal_amount"
+JOURNAL_ENTRY_RETURN_FEE_FIELDNAME = "erpverein_return_fee_amount"
+JOURNAL_ENTRY_RETURN_REASON_FIELDNAME = "erpverein_return_reason_code"
+JOURNAL_ENTRY_RETURN_FIELDNAMES = (
+    JOURNAL_ENTRY_COLLECTION_ITEM_FIELDNAME,
+    JOURNAL_ENTRY_RETURN_BANK_TRANSACTION_FIELDNAME,
+    JOURNAL_ENTRY_RETURN_PRINCIPAL_FIELDNAME,
+    JOURNAL_ENTRY_RETURN_FEE_FIELDNAME,
+    JOURNAL_ENTRY_RETURN_REASON_FIELDNAME,
+)
 
 
 def get_custom_fields() -> dict:
@@ -468,6 +480,53 @@ def get_custom_fields() -> dict:
                 "unique": 1,
             },
         ],
+        "Journal Entry": [
+            {
+                "fieldname": JOURNAL_ENTRY_COLLECTION_ITEM_FIELDNAME,
+                "label": "SEPA-Einzugsposition",
+                "fieldtype": "Link",
+                "options": "SEPA Einzugsposition",
+                "insert_after": "clearance_date",
+                "description": "Einzugsposition, deren Ruecklastschrift ERPverein mit diesem Buchungssatz gebucht hat.",
+                "no_copy": 1,
+                "read_only": 1,
+                "unique": 1,
+            },
+            {
+                "fieldname": JOURNAL_ENTRY_RETURN_BANK_TRANSACTION_FIELDNAME,
+                "label": "ERPverein Ruecklastschrift (Bankumsatz)",
+                "fieldtype": "Link",
+                "options": "Bank Transaction",
+                "insert_after": JOURNAL_ENTRY_COLLECTION_ITEM_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+                "unique": 1,
+            },
+            {
+                "fieldname": JOURNAL_ENTRY_RETURN_PRINCIPAL_FIELDNAME,
+                "label": "ERPverein Hauptbetrag der Ruecklastschrift",
+                "fieldtype": "Currency",
+                "insert_after": JOURNAL_ENTRY_RETURN_BANK_TRANSACTION_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": JOURNAL_ENTRY_RETURN_FEE_FIELDNAME,
+                "label": "ERPverein Gebuehr der Ruecklastschrift",
+                "fieldtype": "Currency",
+                "insert_after": JOURNAL_ENTRY_RETURN_PRINCIPAL_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+            {
+                "fieldname": JOURNAL_ENTRY_RETURN_REASON_FIELDNAME,
+                "label": "ERPverein Rueckgabegrund",
+                "fieldtype": "Data",
+                "insert_after": JOURNAL_ENTRY_RETURN_FEE_FIELDNAME,
+                "no_copy": 1,
+                "read_only": 1,
+            },
+        ],
     }
 
 
@@ -529,5 +588,6 @@ def remove_custom_fields() -> None:
                 PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
                 PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
             ],
+            "Journal Entry": list(JOURNAL_ENTRY_RETURN_FIELDNAMES),
         }
     )

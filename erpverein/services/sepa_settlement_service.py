@@ -24,22 +24,27 @@ from erpverein.services.sepa_collection_service import (
     POSITION_STATUS_DONE,
     POSITION_STATUS_EXPORTED,
     POSITION_STATUS_PAID,
+    POSITION_STATUS_RETURNED,
     POSITION_STATUS_REVIEW,
     RUN_DOCTYPE,
     RUN_STATUS_BANK_REFERENCE,
+    RUN_STATUS_CLOSED,
     RUN_STATUS_CREDIT_RECOGNIZED,
     RUN_STATUS_EXPORTED,
+    RUN_STATUS_PARTLY_RETURNED,
     RUN_STATUS_REVIEW,
     RUN_STATUS_SETTLED,
     SETTLEMENT_RUN_STATUSES,
     UPDATE_FLAG,
     get_active_position_docs,
     get_locked_run,
+    get_run_position_docs,
     has_accounts_role,
     require_reason,
     save_position,
     save_run_totals,
 )
+from erpverein.services.sepa_return_matcher import refund_period_over
 from erpverein.services.sepa_settlement_matcher import (
     ACTION_REVIEW,
     ACTION_SETTLE,
@@ -63,6 +68,9 @@ RESTART_RUN_STATUSES = (RUN_STATUS_CREDIT_RECOGNIZED, RUN_STATUS_REVIEW)
 OPEN_POSITION_STATUSES = (POSITION_STATUS_EXPORTED, POSITION_STATUS_REVIEW)
 # A position is settled when it is paid or when the treasurer marked a review case as done.
 SETTLED_POSITION_STATUSES = (POSITION_STATUS_PAID, POSITION_STATUS_DONE)
+# For its run a returned position is settled as well: its money came and went back through the bank.
+RUN_SETTLED_POSITION_STATUSES = (*SETTLED_POSITION_STATUSES, POSITION_STATUS_RETURNED)
+FINAL_RUN_STATUSES = (RUN_STATUS_SETTLED, RUN_STATUS_PARTLY_RETURNED, RUN_STATUS_CLOSED)
 RECONCILIATION_PERMISSIONS = (
     (RUN_DOCTYPE, "write"),
     (POSITION_DOCTYPE, "write"),
@@ -70,7 +78,10 @@ RECONCILIATION_PERMISSIONS = (
     ("Bank Transaction", "submit"),
     ("Payment Entry", "create"),
     ("Payment Entry", "submit"),
+    ("Journal Entry", "create"),
+    ("Journal Entry", "submit"),
     ("Sales Invoice", "read"),
+    ("Sales Invoice", "write"),
     ("Customer", "read"),
     ("Bank Account", "read"),
     ("Mitglied", "read"),
@@ -175,12 +186,13 @@ def run_bank_reconciliation(bank_account: str, bank_import: str | None = None) -
         bank_import,
         bank_import_service.RECONCILIATION_DONE,
         _(
-            "{0} Zahlungen gebucht, {1} Einzugslaeufe abgestimmt, {2} Ueberweisungen zugeordnet, "
-            "{3} Vorschlaege warten auf Bestaetigung, {4} Bankumsaetze zur manuellen Pruefung, {5} Fehler. "
-            "Offene Faelle zeigt der Arbeitsvorrat."
+            "{0} Zahlungen gebucht, {1} Einzugslaeufe abgestimmt, {2} Ruecklastschriften gebucht, "
+            "{3} Ueberweisungen zugeordnet, {4} Vorschlaege warten auf Bestaetigung, "
+            "{5} Bankumsaetze zur manuellen Pruefung, {6} Fehler. Offene Faelle zeigt der Arbeitsvorrat."
         ).format(
             summary.payments,
             summary.settled_runs,
+            summary.returns,
             summary.transfers,
             summary.proposals,
             summary.review,
@@ -219,7 +231,7 @@ def truncate_note(value: str | None) -> str | None:
 
 
 def new_summary() -> frappe._dict:
-    return frappe._dict(payments=0, settled_runs=0, review=0, transfers=0, proposals=0, errors=0)
+    return frappe._dict(payments=0, settled_runs=0, returns=0, review=0, transfers=0, proposals=0, errors=0)
 
 
 def reconcile_bank_account(bank_account: str) -> frappe._dict:
@@ -240,9 +252,12 @@ def reconcile_bank_account(bank_account: str) -> frappe._dict:
             batch_credits.append(row)
     for decision in match_run_credits([to_credit(row) for row in batch_credits], get_batch_runs(bank_account)):
         apply_run_decision(decision, summary)
-    # Imported here to avoid a cycle: the transfer step uses the helpers of this module.
+    # Imported here to avoid a cycle: the return and transfer steps use the helpers of this module.
+    from erpverein.services.sepa_return_service import settle_return_debits
     from erpverein.services.transfer_settlement_service import settle_transfer_credits
 
+    # Returns after the credits: a reject comes on the day of the batch credit and needs its payment (spec 17.3).
+    settle_return_debits(bank_account, summary)
     # Self-payers last: only credits that the direct debit settlement did not take (spec 16).
     settle_transfer_credits(bank_account, summary)
     return summary
@@ -511,7 +526,7 @@ def restart_run_settlement(run_name: str, summary) -> None:
 def process_run_settlement(run, summary) -> None:
     """Create the missing payments of a settled run and reconcile them; payments that exist stay as they are."""
     groups = {}
-    for position in get_active_position_docs(run.name):
+    for position in get_run_position_docs(run.name):
         if position.settlement_bank_transaction:
             groups.setdefault(position.settlement_bank_transaction, []).append(position)
     notes = [
@@ -540,17 +555,17 @@ def settle_transaction_positions(run, transaction_name: str, positions: list, su
         reason = _("Der Bankumsatz {0} hat nicht mehr genug offenen Betrag. Er ist anders abgeglichen.").format(
             transaction.name
         )
+    # A returned position keeps its payment: the restart links it to the credit again, it never pays it again.
+    booked = (POSITION_STATUS_PAID, POSITION_STATUS_RETURNED)
     if reason:
         for position in pending:
-            if position.status != POSITION_STATUS_PAID:
+            if position.status not in booked:
                 set_position_review(position, reason)
         return reason
     for position in pending:
-        if position.status != POSITION_STATUS_PAID:
+        if position.status not in booked:
             ensure_payment(run, position, transaction, summary)
-    return reconcile_payments(
-        transaction, [position for position in pending if position.status == POSITION_STATUS_PAID]
-    )
+    return reconcile_payments(transaction, [position for position in pending if position.status in booked])
 
 
 def ensure_payment(run, position, transaction, summary) -> None:
@@ -700,9 +715,18 @@ def reconcile_payments(transaction, positions: list) -> str | None:
     return None
 
 
-def refresh_run_settlement(run, summary=None, note: str | None = None) -> None:
+def settled_run_status(run, positions: list, today=None) -> str:
+    """Status of a run whose positions are settled and whose credits are reconciled (spec 37.5)."""
+    returned = [position for position in positions if position.status == POSITION_STATUS_RETURNED]
+    undecided = [position for position in returned if not position.get("return_decision")]
+    if not undecided and refund_period_over(getdate(run.collection_date), getdate(today or nowdate())):
+        return RUN_STATUS_CLOSED
+    return RUN_STATUS_PARTLY_RETURNED if returned else RUN_STATUS_SETTLED
+
+
+def refresh_run_settlement(run, summary=None, note: str | None = None, today=None) -> None:
     """Derive the run status from its positions and their bank credits; set the match status of each credit."""
-    positions = get_active_position_docs(run.name)
+    positions = get_run_position_docs(run.name)
     transactions = sorted(
         {position.settlement_bank_transaction for position in positions if position.settlement_bank_transaction}
     )
@@ -712,9 +736,9 @@ def refresh_run_settlement(run, summary=None, note: str | None = None) -> None:
         if flt(frappe.db.get_value("Bank Transaction", name, "unallocated_amount")) > AMOUNT_TOLERANCE
     }
     review = [position for position in positions if position.status == POSITION_STATUS_REVIEW]
-    all_paid = bool(positions) and all(position.status in SETTLED_POSITION_STATUSES for position in positions)
+    all_paid = bool(positions) and all(position.status in RUN_SETTLED_POSITION_STATUSES for position in positions)
     if all_paid and not unreconciled and not note:
-        status = RUN_STATUS_SETTLED
+        status = settled_run_status(run, positions, today)
     elif review or note or (all_paid and unreconciled):
         status = RUN_STATUS_REVIEW
         note = note or (
@@ -730,19 +754,22 @@ def refresh_run_settlement(run, summary=None, note: str | None = None) -> None:
         return
     note = truncate_note(note)
     error_count = sum(1 for position in positions if position.processing_error)
+    final = status in FINAL_RUN_STATUSES
     if (run.status, run.settlement_note or None, cint(run.error_count)) != (status, note, error_count) or (
-        status == RUN_STATUS_SETTLED and not run.settled_at
+        final and not run.settled_at
     ):
-        if status == RUN_STATUS_SETTLED and run.status != RUN_STATUS_SETTLED and summary is not None:
+        if final and run.status not in FINAL_RUN_STATUSES and summary is not None:
             summary.settled_runs += 1
         run.status = status
         run.settlement_note = note
-        if status == RUN_STATUS_SETTLED and not run.settled_at:
+        if final and not run.settled_at:
             run.settled_at = now_datetime()
+        # A late return opens a closed run again; it closes again after the decision.
+        run.closed_at = (run.closed_at or now_datetime()) if status == RUN_STATUS_CLOSED else None
         save_run_totals(run)
     for name in transactions:
         group = [position for position in positions if position.settlement_bank_transaction == name]
-        if name not in unreconciled and all(position.status in SETTLED_POSITION_STATUSES for position in group):
+        if name not in unreconciled and all(position.status in RUN_SETTLED_POSITION_STATUSES for position in group):
             set_credit_match(name, MATCH_STATUS_MATCHED, describe_settlement(run, group))
         else:
             set_credit_match(name, MATCH_STATUS_REVIEW, note or _("Der Bankumsatz ist nicht vollstaendig abgeglichen."))
@@ -848,11 +875,16 @@ def validate_payment_entry_provenance(doc, method: str | None = None) -> None:
     if doc.flags.get(SETTLEMENT_FLAG):
         return
     previous = doc.get_doc_before_save()
-    for fieldname in (
+    fieldnames = (
         PAYMENT_ENTRY_COLLECTION_ITEM_FIELDNAME,
         PAYMENT_ENTRY_BANK_TRANSACTION_FIELDNAME,
         PAYMENT_ENTRY_TRANSFER_KEY_FIELDNAME,
-    ):
+    )
+    if previous is None and doc.get("amended_from"):
+        # Frappe copies read-only fields into an amendment; the amendment is the treasurer's own payment.
+        for fieldname in fieldnames:
+            doc.set(fieldname, None)
+    for fieldname in fieldnames:
         if (doc.get(fieldname) or None) != ((previous.get(fieldname) if previous else None) or None):
             frappe.throw(_("Die SEPA-Felder einer Zahlung setzt nur ERPverein."))
 
@@ -870,6 +902,14 @@ def handle_cancelled_collection_payment(doc, method: str | None = None) -> None:
         )
     run = get_locked_run(frappe.db.get_value(POSITION_DOCTYPE, position_name, "collection_run"))
     position = frappe.get_doc(POSITION_DOCTYPE, position_name)
+    if position.status == POSITION_STATUS_RETURNED:
+        # The journal entry of the return opened the invoice already; without the payment it would be open twice.
+        frappe.throw(
+            _(
+                "Die Zahlung gehoert zur zurueckbelasteten Einzugsposition {0}. Sie bleibt bestehen; die Gegenbuchung "
+                "{1} hat die Rechnung schon wieder geoeffnet."
+            ).format(position.name, position.return_journal_entry)
+        )
     set_position_review(
         position, _("Die Zahlung {0} wurde storniert. Klaere den Fall im Banking-Bereich.").format(doc.name)
     )
