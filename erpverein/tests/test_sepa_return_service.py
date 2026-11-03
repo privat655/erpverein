@@ -598,7 +598,9 @@ class TestSEPAReturnService(IntegrationTestCase):
             self.assertIn("Einzugsposition", message)
         finally:
             frappe.set_user("Administrator")
-        self.assertEqual(run_positions(run.name)[0].return_decision, None)
+        # Frappe stores an empty Select as "": no decision yet, the row stays locked.
+        self.assertFalse(run_positions(run.name)[0].return_decision)
+        self.assertTrue(run_positions(run.name)[0].active_key)
 
         treasurer = make_erpverein_manager_user()
         try:
