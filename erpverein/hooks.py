@@ -7,6 +7,16 @@ app_license = "MIT"
 
 required_apps = ["erpnext"]
 
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": "/assets/erpverein/images/erpverein-logo.svg",
+        "title": app_title,
+        "route": "/desk/vereinsverwaltung",
+        "has_permission": "erpverein.services.app_permission_service.has_app_permission",
+    }
+]
+
 after_install = "erpverein.install.after_install"
 after_migrate = "erpverein.install.after_migrate"
 before_uninstall = "erpverein.uninstall.before_uninstall"

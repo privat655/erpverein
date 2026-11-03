@@ -22,4 +22,4 @@ where = ["."]
 include = ["erpverein*"]
 
 [tool.setuptools.package-data]
-erpverein = ["**/*.json", "**/*.js", "*.txt"]
+erpverein = ["**/*.json", "**/*.js", "**/*.svg", "*.txt"]

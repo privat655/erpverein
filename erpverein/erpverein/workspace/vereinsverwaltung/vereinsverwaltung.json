@@ -168,6 +168,7 @@
  "roles": [],
  "sequence_id": 1.0,
  "shortcuts": [],
+ "standard": 1,
  "title": "Vereinsverwaltung",
  "type": "Workspace"
 }
