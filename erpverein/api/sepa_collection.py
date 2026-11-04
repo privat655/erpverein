@@ -14,8 +14,9 @@ from erpverein.services.sepa_return_service import decide_returned_position
 from erpverein.services.sepa_settlement_service import mark_position_done, start_run_reconciliation
 
 
+# frappe.call sends null as an empty string. The service reads "" as "use the profile default".
 @frappe.whitelist()
-def get_preview(cutoff_date: str, company: str | None = None, batch_booking: int | None = None) -> dict:
+def get_preview(cutoff_date: str, company: str | None = None, batch_booking: int | str | None = None) -> dict:
     return build_collection_preview(company, cutoff_date, batch_booking)
 
 
@@ -24,7 +25,7 @@ def create_runs(
     cutoff_date: str,
     preview_hash: str,
     company: str | None = None,
-    batch_booking: int | None = None,
+    batch_booking: int | str | None = None,
     selected_rows: str | None = None,
 ) -> dict:
     return create_collection_runs(company, cutoff_date, preview_hash, batch_booking, selected_rows)

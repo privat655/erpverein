@@ -116,6 +116,20 @@ class TestSEPACollectionPlanning(UnitTestCase):
             with self.subTest(name=name), self.assertRaises(frappe.ValidationError):
                 validate_creditor_name(frappe._dict(creditor_name=name))
 
+    @patch("erpverein.api.sepa_collection.create_collection_runs", return_value={})
+    @patch("erpverein.api.sepa_collection.build_collection_preview", return_value={})
+    def test_api_accepts_the_empty_batch_booking_of_frappe_call(self, build_preview, create_runs):
+        from erpverein.api.sepa_collection import create_runs as create_runs_api
+        from erpverein.api.sepa_collection import get_preview
+
+        # The dialog sends batch_booking null without "Einzelbuchung"; frappe.call turns it into "".
+        # Whitelisted arguments are type-checked in requests and tests.
+        get_preview(cutoff_date="2027-02-01", company="Verein", batch_booking="")
+        create_runs_api(cutoff_date="2027-02-01", preview_hash="hash", company="Verein", batch_booking="")
+
+        build_preview.assert_called_once_with("Verein", "2027-02-01", "")
+        create_runs.assert_called_once_with("Verein", "2027-02-01", "hash", "", None)
+
     @patch("erpverein.services.sepa_collection_service.frappe.get_roles")
     def test_collection_records_need_an_accounts_role(self, get_roles):
         from erpverein.services.sepa_collection_service import collection_has_permission, collection_query_conditions
