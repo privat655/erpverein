@@ -347,6 +347,23 @@ def assign_fingerprints(rows: list[StatementRow], account_iban: str) -> None:
         row.fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+# AqBanking reads localIban from the booking's parties (debit: debtor account, credit: creditor account) and ignores
+# the reversal flag. A return or refund keeps the original parties, so localIban is the other party and remoteIban the
+# club. Such a row gets the other party as counterpart; a row without the club on either side is foreign.
+def align_reversed_parties(rows: list[StatementRow], account_iban: str) -> list[int]:
+    account_iban = normalize_iban(account_iban)
+    foreign = []
+    for row in rows:
+        if not row.local_iban or row.local_iban == account_iban:
+            continue
+        if row.party_iban != account_iban:
+            foreign.append(row.source_row_number)
+            continue
+        # The remote name and BIC are the club's own; the export holds no name of the other party.
+        row.party_iban, row.party_name, row.party_bic, row.local_iban = row.local_iban, "", "", account_iban
+    return foreign
+
+
 def classify_row(row: StatementRow, own_creditor_ids=frozenset()) -> str:
     if not row.amount:
         return CATEGORY_OTHER

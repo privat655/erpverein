@@ -22,6 +22,7 @@ from erpverein.services.bank_statement_parser import (
     BankRowError,
     BankStatementError,
     StatementRow,
+    align_reversed_parties,
     assign_fingerprints,
     classify_row,
     mask_sensitive_text,
@@ -238,6 +239,50 @@ class TestBankStatementParser(UnitTestCase):
         self.assertNotIn(later[2].fingerprint, {row.fingerprint for row in first})
         self.assertNotEqual(other_account[0].fingerprint, first[0].fingerprint)
         self.assertEqual(len(first[0].fingerprint), 64)
+
+    def test_reversed_bookings_get_the_payer_as_party_and_foreign_rows_are_listed(self):
+        # A return keeps the collection's parties: AqBanking puts the payer in localIban and the club in remoteIban.
+        returned, credit, fee, foreign = parse_statement(
+            v3_file(
+                [
+                    {
+                        "dateAsString": "04.02.2027",
+                        "valueAsString": "-345.67",
+                        "localIban": PAYER_IBAN,
+                        "remoteName": "Verein",
+                        "remoteIban": CLUB_IBAN,
+                        "remoteBic": "HYVEDEMMXXX",
+                        "transactionText": "SEPA Lastschrift-Rueckrechn",
+                        "transactionKey": "PMNT-IDDT-UPDD",
+                    },
+                    {
+                        "dateAsString": "04.02.2027",
+                        "valueAsString": "30.00",
+                        "localIban": CLUB_IBAN,
+                        "remoteName": "Erika Mustermann",
+                        "remoteIban": PAYER_IBAN,
+                    },
+                    {"dateAsString": "04.02.2027", "valueAsString": "-34.20", "localIban": CLUB_IBAN},
+                    {
+                        "dateAsString": "04.02.2027",
+                        "valueAsString": "12.00",
+                        "localIban": OTHER_IBAN,
+                        "remoteIban": PAYER_IBAN,
+                    },
+                ]
+            ),
+            PROFILE_TEMPLATE_V3,
+        ).rows
+
+        self.assertEqual(align_reversed_parties([returned, credit, fee, foreign], CLUB_IBAN), [5])
+        self.assertEqual(
+            (returned.party_iban, returned.party_name, returned.party_bic, returned.local_iban),
+            (PAYER_IBAN, "", "", CLUB_IBAN),
+        )
+        self.assertEqual((credit.party_iban, credit.party_name), (PAYER_IBAN, "Erika Mustermann"))
+        self.assertEqual((fee.party_iban, fee.local_iban), ("", CLUB_IBAN))
+        self.assertEqual((foreign.party_iban, foreign.local_iban), (PAYER_IBAN, OTHER_IBAN))
+        self.assertEqual(classify_row(returned), CATEGORY_DIRECT_DEBIT_RETURN)
 
     def test_classification_uses_codes_keywords_and_sign(self):
         cases = [

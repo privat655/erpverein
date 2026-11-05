@@ -24,6 +24,7 @@ from erpverein.services.bank_statement_parser import (
     MAX_STATEMENT_BYTES,
     PARSER_VERSION,
     BankStatementError,
+    align_reversed_parties,
     assign_fingerprints,
     classify_row,
     is_valid_iban,
@@ -202,9 +203,12 @@ def process_bank_import(doc, statement_data: bytes) -> dict:
         doc.column_fill = json.dumps(statement.fill_counts, indent=1)
         counters.rows = statement.row_count
         errors += [(number, code, message) for number, code, message in statement.errors]
-        if any(row.local_iban and row.local_iban != context.iban for row in statement.rows):
+        foreign_rows = align_reversed_parties(statement.rows, context.iban)
+        if foreign_rows:
             raise BankStatementError(
-                "Die Datei enthaelt Umsaetze eines anderen Kontos. ERPverein hat nichts importiert."
+                _(
+                    "Die Datei enthaelt Umsaetze eines anderen Kontos (Zeile {0}). ERPverein hat nichts importiert."
+                ).format(", ".join(map(str, foreign_rows[:10])))
             )
     except BankStatementError as exc:
         return finish_import(doc, counters, errors, fatal=str(exc))

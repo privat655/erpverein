@@ -272,6 +272,31 @@ class TestBankImportService(IntegrationTestCase):
 
         self.assertEqual(frappe.db.count(IMPORT_DOCTYPE), imports)
 
+    def test_returns_with_the_club_as_creditor_import_the_payer_as_party(self):
+        # On a return AqBanking keeps the parties of the collection: the payer in localIban, the club in remoteIban.
+        payer = make_german_iban()
+        tag = token()
+        row = {
+            "dateAsString": FEBRUARY,
+            "valueAsString": "-345.67",
+            "localIban": payer,
+            "remoteName": "Verein Test",
+            "remoteIban": self.club_iban,
+            "remoteBic": "HYVEDEMMXXX",
+            "purposeInOneLine": f"Miete {tag}",
+            "endToEndReference": f"E2E-R-{tag}",
+            "mandateId": f"MR-{tag}",
+            "transactionText": "SEPA Lastschrift-Rueckrechn",
+            "transactionKey": "PMNT-IDDT-UPDD",
+        }
+
+        result = send(v3_file([row]), schema=V3_SCHEMA)
+        (returned,) = transactions_for(result["bank_import"])
+
+        self.assertEqual((result["status"], result["new"], result["errors"]), ("Importiert", 1, 0))
+        self.assertEqual((returned.bank_party_iban, returned.bank_party_name), (payer, None))
+        self.assertEqual(returned.erpverein_bank_category, "Ruecklastschrift")
+
     def test_unknown_alias_or_foreign_account_fail_and_can_be_reprocessed(self):
         tag = token()
         content = v2_file(v2_row(JANUARY, "10.00", f"Alias {tag}", make_german_iban()))

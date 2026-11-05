@@ -483,7 +483,7 @@ Jeder Bankumsatz zeigt im Abschnitt „ERPverein“: Kategorie, Abgleich, Wertst
 | Kein Firmen-Bankkonto hat den Bankimport-Alias … | Trage den Alias am Vereinskonto ein (5.2). Klicke im Bankimport „Erneut verarbeiten“. |
 | Fuer das Unternehmen … gibt es kein aktives SEPA-Exportprofil mit Go-live-Stichtag | Lege das Exportprofil an oder trage den Stichtag ein (1.6). Klicke „Erneut verarbeiten“. |
 | Das Bankkonto … braucht eine gueltige IBAN | Trage die IBAN am Vereinskonto ein. Klicke „Erneut verarbeiten“. |
-| Die Datei enthaelt Umsaetze eines anderen Kontos | Prüfe den Kontoalias in der Banking-Webtop. ERPverein hat nichts angelegt. |
+| Die Datei enthaelt Umsaetze eines anderen Kontos (Zeile …) | Die genannten Zeilen der Originaldatei zeigen die IBAN des Vereinskontos auf keiner Seite. Prüfe den Kontoalias und das abgerufene Konto in der Banking-Webtop. ERPverein hat nichts angelegt. |
 | Fehlercode `betrag`, `datum` oder `spaltenzahl` | Die Zeile ist beschädigt. Buche den Umsatz im Banking-Bereich von Hand, wenn er fehlt. Melde den Fall für den Phasenbericht. |
 | Fehlercode `bankumsatz` | ERPNext hat den Umsatz abgelehnt. Die Meldung nennt den Grund. Behebe ihn. Klicke „Erneut verarbeiten“. |
 
@@ -827,6 +827,7 @@ ERPverein prüft jeden offenen Bankumsatz mit einer Belastung in dieser Reihenfo
 1. ERPverein bucht nur, wenn genau eine Position passt.
 2. Name und Betrag allein lösen nie eine Gegenbuchung aus.
 3. Rückgaben aus der Zeit vor dem Go-live finden keine Position. Vereinsmeister nutzte andere Referenzen. Buche sie im Banking-Bereich (9.6).
+4. Eine Rücklastschrift nennt die Beteiligten wie beim Einzug. ERPverein setzt den Zahler als Gegenseite ein. Die Datei enthält dafür keinen Namen. Der Bankumsatz zeigt nur die IBAN des Zahlers.
 
 ### 9.3 Hauptbetrag und Gebühr
 
